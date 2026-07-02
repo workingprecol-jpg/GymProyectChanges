@@ -1,6 +1,6 @@
 # Project Context
 
-Workspace path: `D:\Consultas\SysG`
+Workspace path: `D:\GYM`
 
 ## Goal
 
@@ -124,7 +124,7 @@ Current UI features:
   - Uses Tailwind class-based dark mode (`darkMode: "class"`).
   - Stores the selected theme in `localStorage` under `gym-theme`.
   - Applies the `dark` class to `document.documentElement`.
-- Permission-aware tabs: `Finanzas`, `Analitica`, `Clientes`, `Check-in`, `Mensualidad`, `Progreso`, `Clases`, `Inventario`, `Operaciones`, `Gimnasio`, and `Usuarios`.
+- Permission-aware tabs: `Finanzas`, `Analitica`, `Clientes`, `Check-in`, `Mensualidad`, `Progreso`, `Clases`, `Inventario`, `Operaciones`, `Configuracion`, and `Usuarios`.
 - Inventory tab includes:
   - Product catalog with SKU, name, category, sale price, current stock, and minimum stock.
   - Product search and category filtering.
@@ -149,17 +149,12 @@ Current UI features:
   - Registering an expense updates expenses, net profit, category totals, recent expenses, and the chart.
   - The current chart user count follows the live number of clients in the frontend state.
 - Client creation form with:
-  - Nombre
-  - Correo
-  - Telefono
-  - Genero
-  - Plan
-  - Estatura
-  - Peso
-  - Pecho
-  - Cintura
-  - Cadera
-- Client creation plan options now come from the registered gym plans.
+  - Personal info section, ordered Nombre, Genero, Edad, Peso, Altura, Telefono, Correo (Correo is optional).
+  - Biometria section: Pecho, Brazo, Cintura, Cadera, Pierna.
+  - Membresia section: fixed plan choices (Diario, Semanal, Mensual, Anual, VIP) plus a subscription value field.
+  - Submit button reads "Finalizar registro" and sits under the Membresia section.
+  - All field and section titles render in uppercase.
+- Client creation plan choices are now a fixed list (Diario, Semanal, Mensual, Anual, VIP) instead of pulling from registered gym plans.
 - Gym setup tab includes:
   - Gym name
   - City
@@ -167,8 +162,8 @@ Current UI features:
   - Admin email
   - Admin phone
   - Admin role
-  - Plan registration form
-  - Registered plans table
+  - Plan registration form, reused for both creating and editing plans
+  - Registered plans table with edit and delete actions (minimalist icon buttons) and a custom confirmation modal for delete
   - Feature suggestions for future product work
 - Registered plans include:
   - Plan name
@@ -214,13 +209,15 @@ Current UI features:
 
 Location: `backend/src/`
 
-Backend is currently a code structure, not a fully runnable ASP.NET project yet. There is no `.csproj` at the moment.
+Backend now has a runnable ASP.NET project (`GymSaaS.Api.csproj` and `Program.cs`); see the "Important backend note" below for current caveats.
 
 Main backend files:
 
 - `backend/src/API/Controllers/DashboardController.cs`
 - `backend/src/API/Controllers/CheckInController.cs`
 - `backend/src/API/Controllers/SubscriptionController.cs`
+- `backend/src/API/GymSaaS.Api.csproj`
+- `backend/src/API/Program.cs`
 - `backend/src/API/appsettings.json`
 - `backend/src/API/appsettings.Development.json`
 - `backend/src/API/Program.example.cs`
@@ -273,8 +270,9 @@ SQL Server structure added:
 
 Important backend note:
 
-- Since there is no `.csproj`, backend cannot be built with `dotnet build` yet.
-- Next backend step would be creating proper ASP.NET project files or scaffolding a solution.
+- `GymSaaS.Api.csproj` and `Program.cs` now exist (still untracked in git) and `dotnet build` succeeds with 0 errors.
+- `dotnet run --project backend/src/API/GymSaaS.Api.csproj` starts Kestrel successfully, but DB-backed endpoints (e.g. `/api/check-ins/recent`) return 500 without a reachable SQL Server at the `DefaultConnection` string in `appsettings.Development.json`. No SQL Server is installed in this dev environment yet.
+- The frontend does not call the backend yet (still frontend-only mock data), so the missing SQL Server does not block using the app.
 
 ## Git Status Notes
 
@@ -289,7 +287,7 @@ Relevant project commits:
 Current branch for ongoing feature work:
 
 - `develop`
-- Synchronized with `origin/develop` after publishing the inventory feature.
+- Local changes pending commit (not yet staged/committed): `frontend/src/App.jsx`, `frontend/src/components/ClientForm.jsx`, `frontend/src/components/GymSetup.jsx`, `frontend/src/components/MembersTable.jsx`, `frontend/package-lock.json`, plus untracked `backend/src/API/GymSaaS.Api.csproj`, `backend/src/API/Program.cs`, and `.claude/launch.json` (preview server config).
 
 Most recent frontend changes:
 
@@ -335,6 +333,18 @@ Most recent frontend changes:
   - Client progress tracking.
 - Frontend validated with `npm run build`.
 - Updated `CONTEXT.md` with the current continuation notes.
+- Renamed the "Mensualidad" members-table filter column label to "Membresia".
+- Redesigned the "Crear cliente" form: reordered fields into a Nombre/Genero/Edad row, then Peso/Altura, then Telefono/Correo (Correo is now optional); added a new Edad field.
+- Added a "Biometria" section to the client form with Pecho, Brazo, Cintura, Cadera, and Pierna measurements (Brazo and Pierna are new fields).
+- Replaced the client form's dynamic plan dropdown with a "Membresia" section offering fixed plan choices (Diario, Semanal, Mensual, Anual, VIP) plus a "Valor de la suscripcion" input.
+- Uppercased all field and section titles in the client form; renamed its submit button to "Finalizar registro" and moved it under the Membresia section.
+- Removed the now-unused dynamic `planOptions` wiring between `App.jsx` and `ClientForm`.
+- Added plan management to the Gym Setup "Planes registrados" table: edit (pre-fills the plan form) and delete actions with minimalist custom SVG icons instead of text/emoji.
+- Made plan updates match by plan `id` first, falling back to name-based dedupe only for genuinely new plans, so renaming a plan while editing no longer creates a duplicate.
+- Replaced the native browser confirm dialog for plan deletion with a custom modal matching the app's card design (rounded-lg, gray borders, rose destructive button).
+- Renamed the "Gimnasio" navigation tab to "Configuracion".
+- Verified all changes by fetching each changed file's compiled output from the running Vite dev server (in-browser visual verification tools were unavailable this session).
+- Updated `CONTEXT.md` again with this session's continuation notes.
 
 In the next chat, first run:
 
@@ -351,5 +361,5 @@ If the working tree is clean, continue with the next requested feature.
 Paste this instruction:
 
 ```text
-Continue from D:\Consultas\SysG. Read CONTEXT.md first, then run git status --short. Do not restart from scratch.
+Continue from D:\GYM. Read CONTEXT.md first, then run git status --short. Do not restart from scratch.
 ```

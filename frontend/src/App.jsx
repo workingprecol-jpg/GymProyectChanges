@@ -514,7 +514,7 @@ export default function App() {
         { id: "classes", label: "Clases", permission: "classes" },
         { id: "inventory", label: "Inventario", permission: "inventory" },
         { id: "operations", label: "Operaciones", permission: "operations" },
-        { id: "setup", label: "Gimnasio", permission: "setup" },
+        { id: "setup", label: "Configuracion", permission: "setup" },
         { id: "access", label: "Usuarios", permission: "users" },
       ].filter((item) => hasPermission(currentUser, item.permission)),
     [currentUser],
@@ -594,8 +594,6 @@ export default function App() {
     () => members.filter((member) => member.daysToExpire >= 0 && member.daysToExpire <= 5).length,
     [members],
   );
-
-  const planOptions = useMemo(() => plans.map((plan) => plan.name), [plans]);
 
   useEffect(() => {
     setIsMembershipAlertDismissed(false);
@@ -949,14 +947,24 @@ export default function App() {
 
   function handleCreatePlan(plan) {
     setPlans((current) => {
-      const existingPlan = current.find((item) => item.name.toLowerCase() === plan.name.toLowerCase());
+      const existingById = current.find((item) => item.id === plan.id);
 
-      if (!existingPlan) {
+      if (existingById) {
+        return current.map((item) => (item.id === plan.id ? plan : item));
+      }
+
+      const existingByName = current.find((item) => item.name.toLowerCase() === plan.name.toLowerCase());
+
+      if (!existingByName) {
         return [plan, ...current];
       }
 
-      return current.map((item) => (item.id === existingPlan.id ? { ...plan, id: existingPlan.id } : item));
+      return current.map((item) => (item.id === existingByName.id ? { ...plan, id: existingByName.id } : item));
     });
+  }
+
+  function handleDeletePlan(planId) {
+    setPlans((current) => current.filter((plan) => plan.id !== planId));
   }
 
   function handleSaveGymProfile(profile) {
@@ -1354,7 +1362,7 @@ export default function App() {
         {activeTab === "clients" ? (
           <section className="space-y-6">
             {currentUser.role !== "trainer" ? (
-              <ClientForm onCreate={handleCreateMember} planOptions={planOptions} />
+              <ClientForm onCreate={handleCreateMember} />
             ) : (
               <div className="rounded-2xl border border-sky-200 bg-sky-50 px-5 py-4 text-sm text-sky-800 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200">
                 Tu rol de entrenador permite consultar clientes. La creacion y las mensualidades estan reservadas para recepcion y administracion.
@@ -1494,6 +1502,7 @@ export default function App() {
             onboarding={onboarding}
             onSaveGymProfile={handleSaveGymProfile}
             onCreatePlan={handleCreatePlan}
+            onDeletePlan={handleDeletePlan}
           />
         ) : null}
 

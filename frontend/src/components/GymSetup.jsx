@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const inputClass =
   "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-950 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-50 dark:focus:border-gray-200 dark:focus:ring-gray-700";
@@ -7,6 +7,7 @@ const textAreaClass =
   "min-h-20 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-50 dark:focus:border-gray-200 dark:focus:ring-gray-700";
 
 const initialPlanForm = {
+  id: "",
   name: "",
   price: "",
   durationDays: "30",
@@ -42,6 +43,42 @@ function Field({ label, children }) {
   );
 }
 
+function PencilIcon(props) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M16.862 4.487a2.1 2.1 0 1 1 2.97 2.97L7.5 19.79l-4.243.707.707-4.243L16.862 4.487Z" />
+    </svg>
+  );
+}
+
+function TrashIcon(props) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M4 7h16" />
+      <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+      <path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  );
+}
+
 function formatCurrency(value) {
   return new Intl.NumberFormat("es-CO", {
     style: "currency",
@@ -50,9 +87,48 @@ function formatCurrency(value) {
   }).format(value || 0);
 }
 
-export default function GymSetup({ gymProfile, plans, onboarding, onSaveGymProfile, onCreatePlan }) {
+export default function GymSetup({ gymProfile, plans, onboarding, onSaveGymProfile, onCreatePlan, onDeletePlan }) {
   const [profileForm, setProfileForm] = useState(gymProfile);
   const [planForm, setPlanForm] = useState(initialPlanForm);
+  const [planToDelete, setPlanToDelete] = useState(null);
+
+  useEffect(() => {
+    if (!planToDelete) {
+      return;
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        setPlanToDelete(null);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [planToDelete]);
+
+  function editPlan(plan) {
+    setPlanForm({
+      id: plan.id,
+      name: plan.name,
+      price: String(plan.price),
+      durationDays: String(plan.durationDays),
+      maxClasses: plan.maxClasses ? String(plan.maxClasses) : "",
+      description: plan.description || "",
+    });
+  }
+
+  function deletePlan(plan) {
+    setPlanToDelete(plan);
+  }
+
+  function confirmDeletePlan() {
+    onDeletePlan(planToDelete.id);
+    if (planForm.id === planToDelete.id) {
+      setPlanForm(initialPlanForm);
+    }
+    setPlanToDelete(null);
+  }
 
   function updateProfileField(field, value) {
     setProfileForm((current) => ({ ...current, [field]: value }));
@@ -87,7 +163,7 @@ export default function GymSetup({ gymProfile, plans, onboarding, onSaveGymProfi
     }
 
     onCreatePlan({
-      id: crypto.randomUUID(),
+      id: planForm.id || crypto.randomUUID(),
       name: planForm.name.trim(),
       price: Number(planForm.price),
       durationDays: Number(planForm.durationDays),
@@ -99,6 +175,7 @@ export default function GymSetup({ gymProfile, plans, onboarding, onSaveGymProfi
   }
 
   return (
+    <>
     <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
       <div className="space-y-6">
         <form
@@ -188,15 +265,28 @@ export default function GymSetup({ gymProfile, plans, onboarding, onSaveGymProfi
         >
           <div className="flex flex-col gap-3 border-b border-gray-200 pb-3 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-base font-semibold text-gray-950 dark:text-white">Registrar plan</h2>
+              <h2 className="text-base font-semibold text-gray-950 dark:text-white">
+                {planForm.id ? "Editar plan" : "Registrar plan"}
+              </h2>
               <p className="text-sm text-gray-500 dark:text-gray-400">Crea planes que luego puedes asignar a clientes.</p>
             </div>
-            <button
-              type="submit"
-              className="h-10 rounded-xl bg-emerald-500 px-5 text-sm font-semibold text-white shadow-md shadow-emerald-500/20 transition hover:bg-emerald-600"
-            >
-              Agregar plan
-            </button>
+            <div className="flex gap-2">
+              {planForm.id ? (
+                <button
+                  type="button"
+                  onClick={() => setPlanForm(initialPlanForm)}
+                  className="h-10 rounded-xl border border-gray-300 px-4 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  Cancelar
+                </button>
+              ) : null}
+              <button
+                type="submit"
+                className="h-10 rounded-xl bg-emerald-500 px-5 text-sm font-semibold text-white shadow-md shadow-emerald-500/20 transition hover:bg-emerald-600"
+              >
+                {planForm.id ? "Guardar cambios" : "Agregar plan"}
+              </button>
+            </div>
           </div>
 
           <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -269,6 +359,7 @@ export default function GymSetup({ gymProfile, plans, onboarding, onSaveGymProfi
                   <th className="px-4 py-3">Precio</th>
                   <th className="px-4 py-3">Duracion</th>
                   <th className="px-4 py-3">Clases</th>
+                  <th className="px-4 py-3 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -282,6 +373,26 @@ export default function GymSetup({ gymProfile, plans, onboarding, onSaveGymProfi
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{plan.durationDays} dias</td>
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
                       {plan.maxClasses ? plan.maxClasses : "Ilimitadas"}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => editPlan(plan)}
+                        aria-label="Editar plan"
+                        title="Editar plan"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-sky-600 transition hover:bg-sky-50 hover:text-sky-700 dark:text-sky-400 dark:hover:bg-sky-950/40"
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deletePlan(plan)}
+                        aria-label="Eliminar plan"
+                        title="Eliminar plan"
+                        className="ml-1 inline-flex h-8 w-8 items-center justify-center rounded-md text-rose-600 transition hover:bg-rose-50 hover:text-rose-700 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -344,5 +455,53 @@ export default function GymSetup({ gymProfile, plans, onboarding, onSaveGymProfi
         </div>
       </aside>
     </section>
+
+    {planToDelete ? (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/50 p-4"
+        onClick={() => setPlanToDelete(null)}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-plan-title"
+          onClick={(event) => event.stopPropagation()}
+          className="w-full max-w-sm rounded-lg border border-gray-200 bg-white p-5 shadow-xl dark:border-gray-700 dark:bg-gray-800"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400">
+              <TrashIcon className="h-5 w-5" />
+            </div>
+            <h2 id="delete-plan-title" className="text-base font-semibold text-gray-950 dark:text-white">
+              Eliminar plan
+            </h2>
+          </div>
+
+          <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
+            Seguro que deseas eliminar el plan{" "}
+            <span className="font-semibold text-gray-950 dark:text-white">{planToDelete.name}</span>? Esta accion no
+            se puede deshacer.
+          </p>
+
+          <div className="mt-5 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setPlanToDelete(null)}
+              className="h-10 rounded-xl border border-gray-300 px-4 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={confirmDeletePlan}
+              className="h-10 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white shadow-md shadow-rose-600/20 transition hover:bg-rose-700"
+            >
+              Eliminar
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+    </>
   );
 }

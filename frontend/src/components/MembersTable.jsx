@@ -91,7 +91,7 @@ export default function MembersTable({
               <th className="px-4 py-3">Miembro</th>
               <th className="px-4 py-3">
                 <div className="flex min-w-44 flex-col gap-2">
-                  <span>Mensualidad</span>
+                  <span>Membresia</span>
                   {onMembershipFilterChange ? (
                     <select
                       className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs font-medium normal-case text-gray-700 outline-none focus:border-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-200"
