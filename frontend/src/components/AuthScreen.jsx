@@ -24,8 +24,9 @@ export default function AuthScreen({ users, onLogin, onRegisterGym }) {
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4 py-10 text-white">
       <div className="absolute inset-0" aria-hidden="true">
-        <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-emerald-500/20 blur-3xl" />
-        <div className="absolute -bottom-40 right-0 h-[30rem] w-[30rem] rounded-full bg-cyan-500/10 blur-3xl" />
+        <div className="absolute -left-32 -top-32 h-96 w-96 animate-float-slow rounded-full bg-emerald-500/20 blur-3xl" />
+        <div className="absolute -bottom-40 right-0 h-[30rem] w-[30rem] animate-float rounded-full bg-cyan-500/10 blur-3xl" />
+        <div className="absolute left-1/2 top-1/4 h-72 w-72 animate-float rounded-full bg-emerald-400/10 blur-3xl [animation-delay:-4s]" />
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.025)_1px,transparent_1px)] bg-[size:42px_42px]" />
       </div>
 
@@ -96,7 +97,7 @@ export default function AuthScreen({ users, onLogin, onRegisterGym }) {
               </p>
             ) : null}
 
-            <button type="submit" className="h-12 w-full rounded-xl bg-emerald-500 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-600">
+            <button type="submit" className="shine-btn h-12 w-full rounded-xl bg-emerald-500 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:-translate-y-0.5 hover:bg-emerald-600 hover:shadow-xl hover:shadow-emerald-500/30 active:translate-y-0">
               Iniciar sesion
             </button>
               </form>
@@ -123,7 +124,7 @@ export default function AuthScreen({ users, onLogin, onRegisterGym }) {
                   key={user.id}
                   type="button"
                   onClick={() => useDemo(user)}
-                  className="rounded-xl border border-slate-200 p-3 text-left transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-slate-700 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/20"
+                  className="rounded-xl border border-slate-200 p-3 text-left transition hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-50 hover:shadow-md hover:shadow-emerald-500/10 active:translate-y-0 dark:border-slate-700 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/20"
                 >
                   <span className="block text-sm font-semibold">{user.name}</span>
                   <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">{getRoleLabel(user.role)}</span>

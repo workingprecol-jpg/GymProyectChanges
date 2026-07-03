@@ -96,6 +96,27 @@ button {
   transform: scale(0.98);
 }
 
+.shine-btn {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.shine-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.55) 50%, transparent 70%);
+  background-size: 250% 100%;
+  background-position: 200% 0;
+  transition: background-position 800ms ease;
+  pointer-events: none;
+}
+
+.shine-btn:hover::after {
+  background-position: -50% 0;
+}
+
 .app-content table tbody tr {
   transition: background-color 160ms ease;
 }
@@ -151,7 +172,15 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-content {
+  .app-content,
+  .animate-float,
+  .animate-float-slow,
+  .animate-pop-in,
+  .animate-ping {
     animation: none;
+  }
+
+  .shine-btn::after {
+    display: none;
   }
 }

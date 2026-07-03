@@ -9,10 +9,10 @@ import ClientForm from "./components/ClientForm.jsx";
 import FinancialDashboard from "./components/FinancialDashboard.jsx";
 import GymSetup from "./components/GymSetup.jsx";
 import InventoryDashboard from "./components/InventoryDashboard.jsx";
-import MembershipAlert from "./components/MembershipAlert.jsx";
 import MemberDetail from "./components/MemberDetail.jsx";
 import MemberProgress from "./components/MemberProgress.jsx";
 import MembersTable from "./components/MembersTable.jsx";
+import NotificationBell from "./components/NotificationBell.jsx";
 import OperationsDashboard from "./components/OperationsDashboard.jsx";
 import Tabs from "./components/Tabs.jsx";
 
@@ -486,8 +486,8 @@ export default function App() {
   const [financialSummary, setFinancialSummary] = useState(dashboardSummary.financialSummary);
   const [selectedMemberId, setSelectedMemberId] = useState(dashboardSummary.members[0]?.memberId);
   const [activeTab, setActiveTab] = useState("clients");
+  const [isSettingsView, setIsSettingsView] = useState(false);
   const [membershipFilter, setMembershipFilter] = useState("all");
-  const [isMembershipAlertDismissed, setIsMembershipAlertDismissed] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem("gym-theme") || "light");
   const [gymProfile, setGymProfile] = useState(initialGymProfile);
   const [plans, setPlans] = useState(initialPlans);
@@ -507,13 +507,19 @@ export default function App() {
       [
         { id: "finance", label: "Finanzas", permission: "finance" },
         { id: "analytics", label: "Analitica", permission: "analytics" },
-        { id: "clients", label: "Clientes", permission: "clients" },
+        { id: "clients", label: "Registro", permission: "clients" },
         { id: "checkin", label: "Check-in", permission: "checkin" },
-        { id: "membership", label: "Mensualidad", permission: "membership" },
+        { id: "membership", label: "Clientes", permission: "membership" },
         { id: "progress", label: "Progreso", permission: "progress" },
         { id: "classes", label: "Clases", permission: "classes" },
         { id: "inventory", label: "Inventario", permission: "inventory" },
         { id: "operations", label: "Operaciones", permission: "operations" },
+      ].filter((item) => hasPermission(currentUser, item.permission)),
+    [currentUser],
+  );
+  const settingsNavigationItems = useMemo(
+    () =>
+      [
         { id: "setup", label: "Configuracion", permission: "setup" },
         { id: "access", label: "Usuarios", permission: "users" },
       ].filter((item) => hasPermission(currentUser, item.permission)),
@@ -532,7 +538,7 @@ export default function App() {
     },
     clients: {
       eyebrow: "Comunidad",
-      title: "Gestion de clientes",
+      title: "Registro de clientes",
       description: "Administra perfiles, planes y progreso de tus miembros.",
     },
     checkin: {
@@ -542,7 +548,7 @@ export default function App() {
     },
     membership: {
       eyebrow: "Suscripciones",
-      title: "Mensualidades",
+      title: "Clientes",
       description: "Revisa vencimientos y actualiza periodos de servicio.",
     },
     progress: {
@@ -590,14 +596,19 @@ export default function App() {
     return members.filter((member) => member.status === membershipFilter);
   }, [members, membershipFilter]);
 
-  const expiringMembersCount = useMemo(
-    () => members.filter((member) => member.daysToExpire >= 0 && member.daysToExpire <= 5).length,
+  const expiringMembers = useMemo(
+    () =>
+      members
+        .filter((member) => member.daysToExpire >= 0 && member.daysToExpire <= 5)
+        .sort((a, b) => a.daysToExpire - b.daysToExpire),
     [members],
   );
 
-  useEffect(() => {
-    setIsMembershipAlertDismissed(false);
-  }, [expiringMembersCount]);
+  function reviewExpiringMember(memberId) {
+    setMembershipFilter("ExpiringSoon");
+    setSelectedMemberId(memberId);
+    setActiveTab("membership");
+  }
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDarkMode);
@@ -605,10 +616,11 @@ export default function App() {
   }, [isDarkMode, theme]);
 
   useEffect(() => {
-    if (currentUser && !navigationItems.some((item) => item.id === activeTab)) {
+    const reachableTabs = [...navigationItems, ...settingsNavigationItems];
+    if (currentUser && !reachableTabs.some((item) => item.id === activeTab)) {
       setActiveTab(navigationItems[0]?.id || "clients");
     }
-  }, [activeTab, currentUser, navigationItems]);
+  }, [activeTab, currentUser, navigationItems, settingsNavigationItems]);
 
   function loadWorkspace(user, registeredGymOverride = null) {
     if (user.gymId === "gym-demo") {
@@ -1167,8 +1179,8 @@ export default function App() {
   return (
     <main className="app-shell min-h-screen text-slate-950 transition-colors dark:text-slate-50">
       <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
-        <div className="absolute -right-40 -top-48 h-[32rem] w-[32rem] rounded-full bg-emerald-200/30 blur-3xl dark:bg-emerald-900/10" />
-        <div className="absolute -bottom-64 left-1/3 h-[34rem] w-[34rem] rounded-full bg-cyan-100/40 blur-3xl dark:bg-cyan-950/10" />
+        <div className="absolute -right-40 -top-48 h-[32rem] w-[32rem] animate-float-slow rounded-full bg-emerald-200/30 blur-3xl dark:bg-emerald-900/10" />
+        <div className="absolute -bottom-64 left-1/3 h-[34rem] w-[34rem] animate-float rounded-full bg-cyan-100/40 blur-3xl dark:bg-cyan-950/10" />
       </div>
 
       <div className="relative mx-auto min-h-screen max-w-[1600px] lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
@@ -1186,9 +1198,31 @@ export default function App() {
           </div>
 
           <div className="mt-8 px-2">
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Workspace</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
+              {isSettingsView ? "Configuracion" : "Workspace"}
+            </p>
           </div>
-          <Tabs tabs={navigationItems} activeTab={activeTab} onChange={setActiveTab} variant="sidebar" />
+          {isSettingsView ? (
+            <button
+              type="button"
+              onClick={() => {
+                setIsSettingsView(false);
+                setActiveTab(navigationItems[0]?.id || "clients");
+              }}
+              className="mb-1 mt-2 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M19 12H5M11 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Volver
+            </button>
+          ) : null}
+          <Tabs
+            tabs={isSettingsView ? settingsNavigationItems : navigationItems}
+            activeTab={activeTab}
+            onChange={setActiveTab}
+            variant="sidebar"
+          />
 
           <div className="mt-auto space-y-3">
             <div className="rounded-2xl bg-slate-950 p-4 text-white shadow-xl shadow-slate-950/10 dark:bg-slate-900">
@@ -1283,11 +1317,31 @@ export default function App() {
             </div>
           </header>
 
-          <div className="border-b border-slate-200/70 bg-white/60 px-4 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-950/60 lg:hidden">
-            <Tabs tabs={navigationItems} activeTab={activeTab} onChange={setActiveTab} variant="mobile" />
+          <div className="flex items-center gap-2 border-b border-slate-200/70 bg-white/60 px-4 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-950/60 lg:hidden">
+            {isSettingsView ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSettingsView(false);
+                  setActiveTab(navigationItems[0]?.id || "clients");
+                }}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white"
+                aria-label="Volver al menu principal"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="M19 12H5M11 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            ) : null}
+            <Tabs
+              tabs={isSettingsView ? settingsNavigationItems : navigationItems}
+              activeTab={activeTab}
+              onChange={setActiveTab}
+              variant="mobile"
+            />
           </div>
 
-          <div className="app-content px-4 py-6 sm:px-6 lg:px-8 lg:py-8 xl:px-10">
+          <div key={activeTab} className="app-content px-4 py-6 sm:px-6 lg:px-8 lg:py-8 xl:px-10">
             <header className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400">
@@ -1298,13 +1352,42 @@ export default function App() {
                 </h1>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{pageMeta.description}</p>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="hidden items-center gap-2 rounded-full border border-slate-200/80 bg-white/80 px-3 py-2 text-xs font-medium text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900/80 dark:text-slate-400 sm:flex">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  Datos sincronizados
+              <div className="flex flex-col items-end gap-2">
+                <div className="flex items-center gap-2">
+                  {hasPermission(currentUser, "setup") ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setIsSettingsView((current) => {
+                          const next = !current;
+                          setActiveTab(next ? "setup" : navigationItems[0]?.id || "clients");
+                          return next;
+                        })
+                      }
+                      className={`flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 transition duration-200 hover:-translate-y-0.5 hover:scale-105 hover:bg-emerald-600 active:translate-y-0 active:scale-95 ${
+                        isSettingsView ? "ring-2 ring-emerald-300 ring-offset-2 ring-offset-white dark:ring-offset-slate-950" : ""
+                      }`}
+                      aria-label="Configuracion"
+                      aria-pressed={isSettingsView}
+                    >
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.13.39.36.74.67 1 .31.27.7.41 1.11.4H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                  ) : null}
+                  {hasPermission(currentUser, "membership") ? (
+                    <NotificationBell expiringMembers={expiringMembers} onReviewMember={reviewExpiringMember} />
+                  ) : null}
                 </div>
-                <div className="rounded-full border border-slate-200/80 bg-white/80 px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900/80 dark:text-slate-300">
-                  {new Intl.DateTimeFormat("es-CO", { day: "2-digit", month: "short", year: "numeric" }).format(new Date())}
+                <div className="flex items-center gap-3">
+                  <div className="hidden items-center gap-2 rounded-full border border-slate-200/80 bg-white/80 px-3 py-2 text-xs font-medium text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900/80 dark:text-slate-400 sm:flex">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                    Datos sincronizados
+                  </div>
+                  <div className="rounded-full border border-slate-200/80 bg-white/80 px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900/80 dark:text-slate-300">
+                    {new Intl.DateTimeFormat("es-CO", { day: "2-digit", month: "short", year: "numeric" }).format(new Date())}
+                  </div>
                 </div>
               </div>
             </header>
@@ -1326,17 +1409,6 @@ export default function App() {
                   }).format(new Date(onboarding.trialEndsAt))}
                 </div>
               </div>
-            ) : null}
-
-            {hasPermission(currentUser, "membership") && !isMembershipAlertDismissed ? (
-          <MembershipAlert
-            members={members}
-            onDismiss={() => setIsMembershipAlertDismissed(true)}
-            onReview={() => {
-              setMembershipFilter("ExpiringSoon");
-              setActiveTab("membership");
-            }}
-          />
             ) : null}
 
             <div className="mt-6">
@@ -1362,7 +1434,7 @@ export default function App() {
         {activeTab === "clients" ? (
           <section className="space-y-6">
             {currentUser.role !== "trainer" ? (
-              <ClientForm onCreate={handleCreateMember} />
+              <ClientForm onCreate={handleCreateMember} plans={plans} />
             ) : (
               <div className="rounded-2xl border border-sky-200 bg-sky-50 px-5 py-4 text-sm text-sky-800 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200">
                 Tu rol de entrenador permite consultar clientes. La creacion y las mensualidades estan reservadas para recepcion y administracion.
@@ -1371,7 +1443,7 @@ export default function App() {
 
             <div className="space-y-3">
               <div>
-                <h2 className="text-lg font-semibold text-gray-950 dark:text-white">Clientes</h2>
+                <h2 className="text-lg font-semibold text-gray-950 dark:text-white">Base de datos</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Haz click en un usuario para seleccionarlo.</p>
               </div>
               <MembersTable
@@ -1396,7 +1468,7 @@ export default function App() {
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
             <section className="space-y-3">
               <div>
-                <h2 className="text-lg font-semibold text-gray-950 dark:text-white">Mensualidad</h2>
+                <h2 className="text-lg font-semibold text-gray-950 dark:text-white">Clientes</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Selecciona un cliente para revisar fechas, estado y dias restantes.
                 </p>

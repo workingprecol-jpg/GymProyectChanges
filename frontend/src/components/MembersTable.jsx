@@ -1,3 +1,5 @@
+import { useMemo, useState } from "react";
+
 const statusStyles = {
   Active: {
     row: "bg-white dark:bg-gray-800",
@@ -58,6 +60,25 @@ function formatDate(value) {
   }).format(date);
 }
 
+function formatDateShort(value) {
+  if (!value) {
+    return "-";
+  }
+
+  const [year, month, day] = String(value).split("-").map(Number);
+  const date = year && month && day ? new Date(year, month - 1, day) : new Date(value);
+
+  const parts = new Intl.DateTimeFormat("es-CO", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  return `${byType.day} ${byType.month} ${byType.year}`;
+}
+
 export default function MembersTable({
   members = [],
   selectedMemberId,
@@ -66,6 +87,24 @@ export default function MembersTable({
   onSelectMember,
   isLoading = false,
 }) {
+  const [nameQuery, setNameQuery] = useState("");
+  const [planFilter, setPlanFilter] = useState("all");
+
+  const planOptions = useMemo(
+    () => Array.from(new Set(members.map((member) => member.planName).filter(Boolean))).sort(),
+    [members],
+  );
+
+  const visibleMembers = useMemo(() => {
+    const query = nameQuery.trim().toLowerCase();
+
+    return members.filter((member) => {
+      const matchesName = !query || member.fullName.toLowerCase().includes(query);
+      const matchesPlan = planFilter === "all" || member.planName === planFilter;
+      return matchesName && matchesPlan;
+    });
+  }, [members, nameQuery, planFilter]);
+
   if (isLoading) {
     return (
       <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
@@ -88,10 +127,48 @@ export default function MembersTable({
         <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
           <thead className="bg-slate-50/80 text-left text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:bg-slate-950/60 dark:text-slate-400">
             <tr>
-              <th className="px-4 py-3">Miembro</th>
               <th className="px-4 py-3">
                 <div className="flex min-w-44 flex-col gap-2">
+                  <span>Miembro</span>
+                  <input
+                    type="text"
+                    value={nameQuery}
+                    onClick={(event) => event.stopPropagation()}
+                    onChange={(event) => setNameQuery(event.target.value)}
+                    placeholder="Buscar por nombre..."
+                    className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs font-medium normal-case text-gray-700 outline-none focus:border-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-200"
+                  />
+                </div>
+              </th>
+              <th className="px-4 py-3">
+                <div className="flex min-w-40 flex-col gap-2">
                   <span>Membresia</span>
+                  <select
+                    className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs font-medium normal-case text-gray-700 outline-none focus:border-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-200"
+                    value={planFilter}
+                    onClick={(event) => event.stopPropagation()}
+                    onChange={(event) => setPlanFilter(event.target.value)}
+                  >
+                    <option value="all">Todas</option>
+                    {planOptions.map((plan) => (
+                      <option key={plan} value={plan}>
+                        {plan}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </th>
+              <th className="px-4 py-3">
+                <div className="flex items-center gap-1.5">
+                  <span>Inicio</span>
+                  <span className="h-4 w-px rotate-[25deg] bg-slate-400 dark:bg-slate-600" aria-hidden="true" />
+                  <span>Vence</span>
+                </div>
+              </th>
+              <th className="px-4 py-3">Dias restantes</th>
+              <th className="px-4 py-3">
+                <div className="flex min-w-36 flex-col gap-2">
+                  <span>Estado</span>
                   {onMembershipFilterChange ? (
                     <select
                       className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs font-medium normal-case text-gray-700 outline-none focus:border-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-200"
@@ -107,14 +184,17 @@ export default function MembersTable({
                   ) : null}
                 </div>
               </th>
-              <th className="px-4 py-3">Inicio</th>
-              <th className="px-4 py-3">Vence</th>
-              <th className="px-4 py-3">Dias restantes</th>
-              <th className="px-4 py-3">Estado</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-            {members.map((member) => {
+            {visibleMembers.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
+                  No se encontraron miembros con los filtros aplicados.
+                </td>
+              </tr>
+            ) : null}
+            {visibleMembers.map((member) => {
               const style = getStatusStyle(member.status, member.tailwindClass);
 
               return (
@@ -140,8 +220,10 @@ export default function MembersTable({
                     <div className="font-medium text-gray-900 dark:text-gray-100">{member.planName}</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">{formatDate(member.startDate)} - {formatDate(member.endDate)}</div>
                   </td>
-                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatDate(member.startDate)}</td>
-                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatDate(member.endDate)}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                    <div>{formatDateShort(member.startDate)}</div>
+                    <div>{formatDateShort(member.endDate)}</div>
+                  </td>
                   <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{member.daysToExpire}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${style.badge}`}>

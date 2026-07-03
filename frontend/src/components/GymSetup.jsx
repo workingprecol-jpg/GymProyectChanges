@@ -113,7 +113,7 @@ export default function GymSetup({ gymProfile, plans, onboarding, onSaveGymProfi
       name: plan.name,
       price: String(plan.price),
       durationDays: String(plan.durationDays),
-      maxClasses: plan.maxClasses ? String(plan.maxClasses) : "",
+      maxClasses: plan.maxClasses === null || plan.maxClasses === undefined ? "" : String(plan.maxClasses),
       description: plan.description || "",
     });
   }
@@ -167,7 +167,7 @@ export default function GymSetup({ gymProfile, plans, onboarding, onSaveGymProfi
       name: planForm.name.trim(),
       price: Number(planForm.price),
       durationDays: Number(planForm.durationDays),
-      maxClasses: Number(planForm.maxClasses) || null,
+      maxClasses: planForm.maxClasses.trim() === "" ? null : Number(planForm.maxClasses),
       description: planForm.description.trim(),
     });
 
@@ -332,6 +332,7 @@ export default function GymSetup({ gymProfile, plans, onboarding, onSaveGymProfi
                 onChange={(event) => updatePlanField("maxClasses", event.target.value)}
                 placeholder="Ilimitadas"
               />
+              <span className="block text-xs font-normal text-gray-400">Vacio = ilimitadas, 0 = sin clases incluidas.</span>
             </Field>
 
             <div className="md:col-span-2 xl:col-span-4">
@@ -372,7 +373,11 @@ export default function GymSetup({ gymProfile, plans, onboarding, onSaveGymProfi
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatCurrency(plan.price)}</td>
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{plan.durationDays} dias</td>
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
-                      {plan.maxClasses ? plan.maxClasses : "Ilimitadas"}
+                      {plan.maxClasses === null || plan.maxClasses === undefined
+                        ? "Ilimitadas"
+                        : plan.maxClasses === 0
+                          ? "Sin clases"
+                          : plan.maxClasses}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button

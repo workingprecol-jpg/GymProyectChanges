@@ -1,6 +1,4 @@
-import { useState } from "react";
-
-const membershipPlans = ["Diario", "Semanal", "Mensual", "Anual", "VIP"];
+import { useEffect, useState } from "react";
 
 const initialForm = {
   fullName: "",
@@ -15,9 +13,16 @@ const initialForm = {
   waistCm: "",
   hipCm: "",
   legCm: "",
-  planName: "Mensual",
-  subscriptionValue: "",
+  planId: "",
 };
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  }).format(value || 0);
+}
 
 function Field({ label, children }) {
   return (
@@ -40,8 +45,17 @@ function SectionHeading({ title, subtitle }) {
 const inputClass =
   "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-950 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-50 dark:focus:border-gray-200 dark:focus:ring-gray-700";
 
-export default function ClientForm({ onCreate }) {
+export default function ClientForm({ onCreate, plans = [] }) {
   const [form, setForm] = useState(initialForm);
+  const selectedPlan = plans.find((plan) => plan.id === form.planId) ?? null;
+
+  useEffect(() => {
+    setForm((current) =>
+      plans.some((plan) => plan.id === current.planId)
+        ? current
+        : { ...current, planId: plans[0]?.id ?? "" },
+    );
+  }, [plans]);
 
   function updateField(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -50,13 +64,13 @@ export default function ClientForm({ onCreate }) {
   function handleSubmit(event) {
     event.preventDefault();
 
-    if (!form.fullName.trim()) {
+    if (!form.fullName.trim() || !selectedPlan) {
       return;
     }
 
     const today = new Date();
     const endDate = new Date(today);
-    endDate.setDate(today.getDate() + 30);
+    endDate.setDate(today.getDate() + (selectedPlan.durationDays || 30));
 
     onCreate({
       memberId: crypto.randomUUID(),
@@ -65,11 +79,11 @@ export default function ClientForm({ onCreate }) {
       phone: form.phone.trim(),
       gender: form.gender,
       age: Number(form.age) || null,
-      planName: form.planName,
-      subscriptionValue: Number(form.subscriptionValue) || 0,
+      planName: selectedPlan.name,
+      subscriptionValue: selectedPlan.price || 0,
       startDate: today.toISOString().slice(0, 10),
       endDate: endDate.toISOString().slice(0, 10),
-      daysToExpire: 30,
+      daysToExpire: selectedPlan.durationDays || 30,
       status: "Active",
       visualColor: "Green",
       tailwindClass: "bg-green-100 text-green-800",
@@ -84,7 +98,7 @@ export default function ClientForm({ onCreate }) {
       },
     });
 
-    setForm(initialForm);
+    setForm({ ...initialForm, planId: selectedPlan.id });
   }
 
   return (
@@ -235,45 +249,49 @@ export default function ClientForm({ onCreate }) {
       </div>
 
       <SectionHeading title="Membresia" subtitle="Selecciona el plan del cliente." />
+      {plans.length === 0 ? (
+        <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+          No hay planes registrados. Crea uno en Configuracion para poder asignarlo aqui.
+        </p>
+      ) : (
       <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-wrap gap-2">
-          {membershipPlans.map((plan) => {
-            const isSelected = form.planName === plan;
+          {plans.map((plan) => {
+            const isSelected = form.planId === plan.id;
             return (
               <button
-                key={plan}
+                key={plan.id}
                 type="button"
-                onClick={() => updateField("planName", plan)}
+                onClick={() => updateField("planId", plan.id)}
                 className={`h-10 rounded-full border px-4 text-sm font-medium transition ${
                   isSelected
                     ? "border-emerald-500 bg-emerald-500 text-white shadow-sm shadow-emerald-500/30"
                     : "border-gray-300 bg-white text-gray-600 hover:border-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300"
                 }`}
               >
-                {plan}
+                {plan.name}
               </button>
             );
           })}
         </div>
 
-        <div className="sm:w-48">
-          <Field label="Valor de la suscripcion">
-            <input
-              className={inputClass}
-              type="number"
-              min="0"
-              value={form.subscriptionValue}
-              onChange={(event) => updateField("subscriptionValue", event.target.value)}
-              placeholder="95000"
-            />
-          </Field>
-        </div>
+        {selectedPlan ? (
+          <div className="text-sm sm:text-right">
+            <span className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+              Valor de la suscripcion
+            </span>
+            <span className="text-base font-semibold text-gray-950 dark:text-white">
+              {formatCurrency(selectedPlan.price)}
+            </span>
+          </div>
+        ) : null}
       </div>
+      )}
 
       <div className="mt-4 flex justify-end">
         <button
           type="submit"
-          className="h-10 rounded-xl bg-emerald-500 px-5 text-sm font-semibold text-white shadow-md shadow-emerald-500/20 transition hover:bg-emerald-600"
+          className="shine-btn h-10 rounded-xl bg-emerald-500 px-5 text-sm font-semibold text-white shadow-md shadow-emerald-500/20 transition hover:-translate-y-0.5 hover:bg-emerald-600 hover:shadow-lg hover:shadow-emerald-500/30"
         >
           Finalizar registro
         </button>

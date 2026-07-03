@@ -12,7 +12,7 @@ const icons = {
   ),
   clients: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M13 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M7 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM19 8v6M22 11h-6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
   checkin: (
@@ -22,8 +22,7 @@ const icons = {
   ),
   membership: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-      <rect x="3" y="5" width="18" height="16" rx="2" />
-      <path d="M16 3v4M8 3v4M3 11h18M8 15h2M14 15h2" strokeLinecap="round" />
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
   progress: (
@@ -107,7 +106,10 @@ export default function Tabs({ tabs, activeTab, onChange, variant = "default" })
                   : "text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white"
               }`}
             >
-              <span className={`h-5 w-5 shrink-0 ${isActive ? "text-white" : "text-slate-400 group-hover:text-emerald-500"}`}>
+              <span
+                key={isActive ? "active" : "inactive"}
+                className={`h-5 w-5 shrink-0 ${isActive ? "animate-pop-in text-white" : "text-slate-400 group-hover:text-emerald-500"}`}
+              >
                 {icons[tab.id]}
               </span>
               {tab.label}
