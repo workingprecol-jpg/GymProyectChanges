@@ -87,11 +87,14 @@ Current UI features:
 - Demo accounts use password `Demo123!`.
 - Authentication is frontend-only mock behavior until the runnable backend and secure password storage are implemented.
 - Classes tab includes:
-  - Class scheduling with trainer, date, time, duration, capacity, and room.
-  - Client reservations.
+  - A "Programar clase" panel with a member picker on the left (name search, avatar, name, email, single selection) and the class form on the right (trainer, date, time, duration, capacity, room), separated by a vertical divider.
+  - The Clase field is a select fed by the class catalog registered in Configuracion; choosing one auto-fills trainer, duration, capacity, and room (all still editable), while date and time stay manual.
+  - When the catalog is empty the select shows "Sin clases registradas" and a hint pointing to Configuracion.
+  - The panel's single `Confirmar reserva` action creates the class and registers the selected member's reservation in one step (`onCreateClassWithReservation`); no class is created if the member validation fails.
+  - Client reservations into existing classes from the side "Reservar cupo" panel.
   - Duplicate-reservation prevention.
   - Capacity enforcement.
-  - Expired-membership blocking.
+  - Expired-membership and suspended-membership blocking.
   - Reservation cancellation and attendee lists.
 - Progress tab includes:
   - Per-member dated body measurement history.
@@ -144,8 +147,18 @@ Current UI features:
   - Expense categories: Infrastructure, Machinery, and Services.
   - Expenses include description, amount, date, payment method, and optional provider.
   - Category summary cards show the accumulated amount for each expense category.
-  - CSV finance report download.
+  - CSV finance report download, as the rightmost card in the "Acciones rapidas" row (Registrar pago, Registrar gasto, Descargar reporte).
+  - The downloaded report is now only a single "Base de datos" ledger sheet (the "Resumen financiero" and "Cuentas por cobrar" sections were removed) with columns Fecha (DD/MM/YYYY), Mes, Ano, Hora, Categoria, Concepto, Descripcion, Plan, Fecha limite, Monto, Medio de pago, Proveedor, combining every registered payment ("Pago", concepto = member name, Plan/Fecha limite from the matching member's current plan and endDate, Descripcion/Proveedor blank) and expense ("Gasto", concepto = expense category, Plan/Fecha limite blank, Descripcion/Proveedor = the expense's saved values if any), sorted newest first.
   - Registering a payment updates income, payment count, recent payments, the chart, and matching receivables.
+  - The "Pagos recientes" table only lists payments with status other than Pending; pending/unpaid amounts are tracked exclusively in "Cartera por cobrar".
+  - The "Fecha" column in both "Pagos recientes" and "Gastos recientes" tables shows a simple DD/MM/YYYY date (no time, no month name); `formatDateTime` was replaced by `formatDateSimple`.
+  - The "Cartera pendiente" summary card uses the amber/warning tone (instead of red/negative) when there is a pending balance.
+  - The "Utilidad neta" summary card uses a new sky-blue "info" tone (instead of emerald/green) when profit is non-negative; still falls back to the rose/negative tone when profit is negative.
+  - The four summary MetricCards (Ingresos, Gastos, Utilidad neta, Cartera pendiente) now also show a colored top accent bar on hover, matching each card's tone (same color as its value text), in addition to the existing lift/shadow hover effect.
+  - The "Ingresos, gastos y usuarios" chart bars now use a vertical gradient (emerald/rose) instead of a flat fill.
+  - The Infraestructura/Maquinaria/Servicios expense-category cards were redesigned: colored border per category (amber/fuchsia/sky via `expenseCategoryStyles`), with a single category icon (building/gear/bolt) always shown first in a colored circle before the title (no duplicate corner icon), the "Gastos registrados en esta categoria" description below the title, and the amount split into two columns (Mes / Año) at the bottom, separated by a vertical divider. On hover the card lifts (`hover:-translate-y-0.5 hover:shadow-lg`) and that same leading icon circle enlarges (`group-hover:scale-125`).
+  - `categoryExpenseTotals` (replacing the old all-time `expensesByCategory`) computes, per category, the sum of expenses whose date falls in the current real month ("Mes") and the sum for the current real year ("Ano"), based on each expense's `expenseDate` (UTC-safe) or `createdAt` fallback.
+  - The "Acciones rapidas" buttons (Registrar pago, Registrar gasto, Descargar reporte) now use a diagonal-free left-to-right gradient background per tone (`ActionButton`'s `toneStyles`: green = emerald-to-teal, red = rose-to-pink, gray = slate-700-to-slate-500) instead of a flat color; size, text, and icon unchanged.
   - Registering an expense updates expenses, net profit, category totals, recent expenses, and the chart.
   - The current chart user count follows the live number of clients in the frontend state.
 - Client creation form with:
@@ -164,6 +177,9 @@ Current UI features:
   - Admin role
   - Plan registration form, reused for both creating and editing plans
   - Registered plans table with edit and delete actions (minimalist icon buttons) and a custom confirmation modal for delete
+  - A class registration form ("Registrar clase" / "Editar clase") below the plans table with class name, trainer, duration, capacity, and room
+  - A "Registro de clases" table (Clase, Entrenador, Duracion, Capacidad, Espacio, Acciones) mirroring the plans table design, with edit/delete icon buttons and its own delete confirmation modal
+  - Registering a class with an existing name updates it instead of duplicating (id-first matching like plans)
   - Feature suggestions for future product work
 - Registered plans include:
   - Plan name
@@ -174,15 +190,20 @@ Current UI features:
 - Adding a plan with an existing name updates the previous plan instead of duplicating it.
 - Members table is clickable.
 - Check-in tab includes:
-  - Client search by name, email, phone, or plan.
-  - Selected client access validation.
-  - Only one active entry is allowed per client.
-  - A new `Validar salida` action closes the active visit and enables a future entry.
+  - A table-based check-in styled like the client database table, with columns Miembro (avatar, name, email), Membresia, Estado, Vence, and Acciones.
+  - The only filter is the name search inside the Miembro column header (plan and status filters were removed).
+  - Estado badge shows Activa, Por vencer, Vencida, or Suspendida; suspensions toggled in Finanzas are reflected here immediately.
+  - Vence shows the plan end date; already-finished plans add a "Plan finalizado" marker in red.
+  - Per-row `Validar entrada` records the date and time of the moment it is pressed.
+  - `Validar entrada` is disabled for expired or suspended plans and while the client has an active entry.
+  - Per-row `Validar salida` closes the active visit and enables a future entry.
+  - Only one active entry is allowed per client; the Estado cell shows "Dentro desde" with the entry time.
+  - An inline banner above the table confirms the last entry/exit result with the member name and timestamp.
+  - A `Revisar pago` button appears only on expired or suspended rows, and only for roles with finance permission; it navigates to Finanzas, auto-opens the Registrar pago panel, and pre-fills the search with that member's name.
+  - Blocked entries record reason "Plan vencido" or "Plan suspendido".
   - Current people inside the gym are counted on the dashboard.
-  - Entry registration for active and expiring memberships.
-  - Blocked access registration when the membership is expired.
   - Daily counters for allowed entries, blocked attempts, and expiring plans.
-  - Recent check-in history with result and reason.
+  - Recent check-in history with entry/exit timestamps, result, and reason.
 - Membership table column has filter:
   - Todas
   - Activas
@@ -287,7 +308,7 @@ Relevant project commits:
 Current branch for ongoing feature work:
 
 - `develop`
-- Local changes pending commit (not yet staged/committed): `frontend/src/App.jsx`, `frontend/src/components/ClientForm.jsx`, `frontend/src/components/GymSetup.jsx`, `frontend/src/components/MembersTable.jsx`, `frontend/package-lock.json`, plus untracked `backend/src/API/GymSaaS.Api.csproj`, `backend/src/API/Program.cs`, and `.claude/launch.json` (preview server config).
+- Local changes pending commit (not yet staged/committed, as of July 6, 2026): `CONTEXT.md`, `frontend/src/App.jsx`, `frontend/src/components/CheckInDashboard.jsx`, `frontend/src/components/ClassSchedule.jsx`, `frontend/src/components/ClientForm.jsx`, `frontend/src/components/FinancialDashboard.jsx`, `frontend/src/components/GymSetup.jsx`, `frontend/src/components/MemberDetail.jsx`, `frontend/src/components/MembershipCalendar.jsx`.
 
 Most recent frontend changes:
 
@@ -345,6 +366,19 @@ Most recent frontend changes:
 - Renamed the "Gimnasio" navigation tab to "Configuracion".
 - Verified all changes by fetching each changed file's compiled output from the running Vite dev server (in-browser visual verification tools were unavailable this session).
 - Updated `CONTEXT.md` again with this session's continuation notes.
+- Redesigned the Check-in tab (July 6, 2026): replaced the search-cards-plus-side-panel layout with a members-database-style table (Miembro, Membresia, Estado, Vence, Acciones) keeping only the name filter.
+- Added per-row `Validar entrada` / `Validar salida` buttons; entry records the pressed date/time and is disabled for expired or suspended plans or while the client is inside.
+- Added a `Suspendida` status to check-in, connected to the Finanzas suspend/reactivate action, and blocked suspended entries with reason "Plan suspendido".
+- Added a `Revisar pago` button on expired/suspended rows (finance-permission roles only) that opens Finanzas with the Registrar pago panel auto-opened and pre-filtered by the member's name (`financeIntent` state in `App.jsx`, `initialAction`/`initialPaymentQuery`/`onInitialActionConsumed` props in `FinancialDashboard`).
+- Verified in the browser preview: entry/exit flows, suspension reflection, Revisar pago navigation, intent consumption (manual Finanzas visits do not auto-open the panel), and reception role hiding Revisar pago. `npm run build` passes.
+- Redesigned the "Programar clase" panel (July 6, 2026): left member picker with name search (avatar, name, email, highlighted selection), vertical divider, class form on the right, and a single `Confirmar reserva` button replacing `Crear clase`.
+- Creating a class now also registers the selected member's reservation in one step via `handleCreateClassWithReservation` in `App.jsx` (replaces `handleCreateClass`); member validation (missing, suspended, expired) rejects the submit without creating the class.
+- Added suspended-membership blocking to `handleReserveClass` so suspended clients cannot reserve existing classes either.
+- Verified in the browser preview: member filter, no-member and expired-member rejections, and the success flow (class count, active reservations, attendee list, and form reset). `npm run build` passes.
+- Added a class catalog (July 6, 2026): `classCatalog` state in `App.jsx` seeded from the demo classes, reset per workspace like plans, with `handleSaveClassTemplate` / `handleDeleteClassTemplate` (id-first update, name dedupe).
+- Added to Configuracion, below "Planes registrados": a "Registrar clase"/"Editar clase" form (name, trainer, duration, capacity, room) and a "Registro de clases" table with pencil/trash actions and a delete confirmation modal, mirroring the plans UX.
+- "Programar clase" now takes its Clase field from the catalog as a select; selecting a class auto-fills trainer, duration, capacity, and room (editable), with an empty-catalog hint pointing to Configuracion.
+- Verified in the browser preview: seeded catalog table, Pilates registration, Funcional edit (capacity 10 to 14), Spinning deletion via modal, catalog options and auto-fill in Programar clase, and a full class-plus-reservation creation from a template. `npm run build` passes.
 
 In the next chat, first run:
 

@@ -15,6 +15,15 @@ const initialPlanForm = {
   description: "",
 };
 
+const initialClassTemplateForm = {
+  id: "",
+  name: "",
+  coach: "",
+  duration: "60",
+  capacity: "12",
+  room: "",
+};
+
 const featureSuggestions = [
   {
     title: "Recordatorios automaticos",
@@ -87,25 +96,38 @@ function formatCurrency(value) {
   }).format(value || 0);
 }
 
-export default function GymSetup({ gymProfile, plans, onboarding, onSaveGymProfile, onCreatePlan, onDeletePlan }) {
+export default function GymSetup({
+  gymProfile,
+  plans,
+  classCatalog = [],
+  onboarding,
+  onSaveGymProfile,
+  onCreatePlan,
+  onDeletePlan,
+  onSaveClassTemplate,
+  onDeleteClassTemplate,
+}) {
   const [profileForm, setProfileForm] = useState(gymProfile);
   const [planForm, setPlanForm] = useState(initialPlanForm);
   const [planToDelete, setPlanToDelete] = useState(null);
+  const [classTemplateForm, setClassTemplateForm] = useState(initialClassTemplateForm);
+  const [classToDelete, setClassToDelete] = useState(null);
 
   useEffect(() => {
-    if (!planToDelete) {
+    if (!planToDelete && !classToDelete) {
       return;
     }
 
     function handleKeyDown(event) {
       if (event.key === "Escape") {
         setPlanToDelete(null);
+        setClassToDelete(null);
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [planToDelete]);
+  }, [planToDelete, classToDelete]);
 
   function editPlan(plan) {
     setPlanForm({
@@ -128,6 +150,54 @@ export default function GymSetup({ gymProfile, plans, onboarding, onSaveGymProfi
       setPlanForm(initialPlanForm);
     }
     setPlanToDelete(null);
+  }
+
+  function editClassTemplate(template) {
+    setClassTemplateForm({
+      id: template.id,
+      name: template.name,
+      coach: template.coach,
+      duration: String(template.duration),
+      capacity: String(template.capacity),
+      room: template.room,
+    });
+  }
+
+  function confirmDeleteClassTemplate() {
+    onDeleteClassTemplate(classToDelete.id);
+    if (classTemplateForm.id === classToDelete.id) {
+      setClassTemplateForm(initialClassTemplateForm);
+    }
+    setClassToDelete(null);
+  }
+
+  function updateClassTemplateField(field, value) {
+    setClassTemplateForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function handleClassTemplateSubmit(event) {
+    event.preventDefault();
+
+    if (
+      !classTemplateForm.name.trim() ||
+      !classTemplateForm.coach.trim() ||
+      !classTemplateForm.room.trim() ||
+      !classTemplateForm.duration ||
+      !classTemplateForm.capacity
+    ) {
+      return;
+    }
+
+    onSaveClassTemplate({
+      id: classTemplateForm.id || crypto.randomUUID(),
+      name: classTemplateForm.name.trim(),
+      coach: classTemplateForm.coach.trim(),
+      duration: Number(classTemplateForm.duration),
+      capacity: Number(classTemplateForm.capacity),
+      room: classTemplateForm.room.trim(),
+    });
+
+    setClassTemplateForm(initialClassTemplateForm);
   }
 
   function updateProfileField(field, value) {
@@ -167,7 +237,7 @@ export default function GymSetup({ gymProfile, plans, onboarding, onSaveGymProfi
       name: planForm.name.trim(),
       price: Number(planForm.price),
       durationDays: Number(planForm.durationDays),
-      maxClasses: planForm.maxClasses.trim() === "" ? null : Number(planForm.maxClasses),
+      maxClasses: planForm.maxClasses.trim() === "" ? 0 : Number(planForm.maxClasses),
       description: planForm.description.trim(),
     });
 
@@ -330,9 +400,9 @@ export default function GymSetup({ gymProfile, plans, onboarding, onSaveGymProfi
                 min="0"
                 value={planForm.maxClasses}
                 onChange={(event) => updatePlanField("maxClasses", event.target.value)}
-                placeholder="Ilimitadas"
+                placeholder="Sin clases"
               />
-              <span className="block text-xs font-normal text-gray-400">Vacio = ilimitadas, 0 = sin clases incluidas.</span>
+              <span className="block text-xs font-normal text-gray-400">Vacio o 0 = sin clases incluidas.</span>
             </Field>
 
             <div className="md:col-span-2 xl:col-span-4">
@@ -401,6 +471,154 @@ export default function GymSetup({ gymProfile, plans, onboarding, onSaveGymProfi
                     </td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <form
+          onSubmit={handleClassTemplateSubmit}
+          className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"
+        >
+          <div className="flex flex-col gap-3 border-b border-gray-200 pb-3 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-gray-950 dark:text-white">
+                {classTemplateForm.id ? "Editar clase" : "Registrar clase"}
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Las clases registradas aparecen automaticamente al programar una clase.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {classTemplateForm.id ? (
+                <button
+                  type="button"
+                  onClick={() => setClassTemplateForm(initialClassTemplateForm)}
+                  className="h-10 rounded-xl border border-gray-300 px-4 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  Cancelar
+                </button>
+              ) : null}
+              <button
+                type="submit"
+                className="h-10 rounded-xl bg-emerald-500 px-5 text-sm font-semibold text-white shadow-md shadow-emerald-500/20 transition hover:bg-emerald-600"
+              >
+                {classTemplateForm.id ? "Guardar cambios" : "Agregar clase"}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <Field label="Nombre de la clase">
+              <input
+                className={inputClass}
+                value={classTemplateForm.name}
+                onChange={(event) => updateClassTemplateField("name", event.target.value)}
+                placeholder="Spinning"
+                required
+              />
+            </Field>
+
+            <Field label="Entrenador">
+              <input
+                className={inputClass}
+                value={classTemplateForm.coach}
+                onChange={(event) => updateClassTemplateField("coach", event.target.value)}
+                placeholder="Nombre del entrenador"
+                required
+              />
+            </Field>
+
+            <Field label="Duracion (min)">
+              <input
+                className={inputClass}
+                type="number"
+                min="1"
+                value={classTemplateForm.duration}
+                onChange={(event) => updateClassTemplateField("duration", event.target.value)}
+                required
+              />
+            </Field>
+
+            <Field label="Capacidad">
+              <input
+                className={inputClass}
+                type="number"
+                min="1"
+                value={classTemplateForm.capacity}
+                onChange={(event) => updateClassTemplateField("capacity", event.target.value)}
+                required
+              />
+            </Field>
+
+            <div className="md:col-span-2 xl:col-span-4">
+              <Field label="Salon o espacio">
+                <input
+                  className={inputClass}
+                  value={classTemplateForm.room}
+                  onChange={(event) => updateClassTemplateField("room", event.target.value)}
+                  placeholder="Salon principal"
+                  required
+                />
+              </Field>
+            </div>
+          </div>
+        </form>
+
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+          <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+            <h2 className="text-base font-semibold text-gray-950 dark:text-white">Registro de clases</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
+              <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:bg-gray-900/70 dark:text-gray-300">
+                <tr>
+                  <th className="px-4 py-3">Clase</th>
+                  <th className="px-4 py-3">Entrenador</th>
+                  <th className="px-4 py-3">Duracion</th>
+                  <th className="px-4 py-3">Capacidad</th>
+                  <th className="px-4 py-3">Espacio</th>
+                  <th className="px-4 py-3 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                {classCatalog.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
+                      Aun no hay clases registradas.
+                    </td>
+                  </tr>
+                ) : (
+                  classCatalog.map((template) => (
+                    <tr key={template.id} className="bg-white dark:bg-gray-800">
+                      <td className="px-4 py-3 font-medium text-gray-950 dark:text-white">{template.name}</td>
+                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{template.coach}</td>
+                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{template.duration} min</td>
+                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{template.capacity} cupos</td>
+                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{template.room}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => editClassTemplate(template)}
+                          aria-label="Editar clase"
+                          title="Editar clase"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-sky-600 transition hover:bg-sky-50 hover:text-sky-700 dark:text-sky-400 dark:hover:bg-sky-950/40"
+                        >
+                          <PencilIcon className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setClassToDelete(template)}
+                          aria-label="Eliminar clase"
+                          title="Eliminar clase"
+                          className="ml-1 inline-flex h-8 w-8 items-center justify-center rounded-md text-rose-600 transition hover:bg-rose-50 hover:text-rose-700 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -499,6 +717,53 @@ export default function GymSetup({ gymProfile, plans, onboarding, onSaveGymProfi
             <button
               type="button"
               onClick={confirmDeletePlan}
+              className="h-10 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white shadow-md shadow-rose-600/20 transition hover:bg-rose-700"
+            >
+              Eliminar
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+
+    {classToDelete ? (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/50 p-4"
+        onClick={() => setClassToDelete(null)}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-class-title"
+          onClick={(event) => event.stopPropagation()}
+          className="w-full max-w-sm rounded-lg border border-gray-200 bg-white p-5 shadow-xl dark:border-gray-700 dark:bg-gray-800"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400">
+              <TrashIcon className="h-5 w-5" />
+            </div>
+            <h2 id="delete-class-title" className="text-base font-semibold text-gray-950 dark:text-white">
+              Eliminar clase
+            </h2>
+          </div>
+
+          <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
+            Seguro que deseas eliminar la clase{" "}
+            <span className="font-semibold text-gray-950 dark:text-white">{classToDelete.name}</span>? Esta accion no
+            se puede deshacer.
+          </p>
+
+          <div className="mt-5 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setClassToDelete(null)}
+              className="h-10 rounded-xl border border-gray-300 px-4 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={confirmDeleteClassTemplate}
               className="h-10 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white shadow-md shadow-rose-600/20 transition hover:bg-rose-700"
             >
               Eliminar

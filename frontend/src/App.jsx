@@ -391,6 +391,33 @@ const initialClasses = [
   },
 ];
 
+const initialClassCatalog = [
+  {
+    id: "class-template-001",
+    name: "Spinning",
+    coach: "Diego Martinez",
+    duration: 50,
+    capacity: 12,
+    room: "Salon cardio",
+  },
+  {
+    id: "class-template-002",
+    name: "Funcional",
+    coach: "Paula Herrera",
+    duration: 60,
+    capacity: 10,
+    room: "Zona funcional",
+  },
+  {
+    id: "class-template-003",
+    name: "Yoga",
+    coach: "Valeria Castro",
+    duration: 60,
+    capacity: 15,
+    room: "Salon principal",
+  },
+];
+
 const initialReservations = [
   {
     id: "reservation-001",
@@ -485,7 +512,9 @@ export default function App() {
   const [members, setMembers] = useState(dashboardSummary.members);
   const [financialSummary, setFinancialSummary] = useState(dashboardSummary.financialSummary);
   const [selectedMemberId, setSelectedMemberId] = useState(dashboardSummary.members[0]?.memberId);
+  const [editingMemberId, setEditingMemberId] = useState(null);
   const [activeTab, setActiveTab] = useState("clients");
+  const [financeIntent, setFinanceIntent] = useState(null);
   const [isSettingsView, setIsSettingsView] = useState(false);
   const [membershipFilter, setMembershipFilter] = useState("all");
   const [theme, setTheme] = useState(() => localStorage.getItem("gym-theme") || "light");
@@ -493,6 +522,7 @@ export default function App() {
   const [plans, setPlans] = useState(initialPlans);
   const [attendanceLogs, setAttendanceLogs] = useState(initialAttendanceLogs);
   const [classes, setClasses] = useState(initialClasses);
+  const [classCatalog, setClassCatalog] = useState(initialClassCatalog);
   const [reservations, setReservations] = useState(initialReservations);
   const [budgets, setBudgets] = useState(initialBudgets);
   const [equipment, setEquipment] = useState(initialEquipment);
@@ -507,8 +537,8 @@ export default function App() {
       [
         { id: "finance", label: "Finanzas", permission: "finance" },
         { id: "analytics", label: "Analitica", permission: "analytics" },
-        { id: "clients", label: "Registro", permission: "clients" },
         { id: "checkin", label: "Check-in", permission: "checkin" },
+        { id: "clients", label: "Registro", permission: "clients" },
         { id: "membership", label: "Clientes", permission: "membership" },
         { id: "progress", label: "Progreso", permission: "progress" },
         { id: "classes", label: "Clases", permission: "classes" },
@@ -588,6 +618,11 @@ export default function App() {
     [members, selectedMemberId],
   );
 
+  const editingMember = useMemo(
+    () => members.find((member) => member.memberId === editingMemberId) || null,
+    [members, editingMemberId],
+  );
+
   const filteredMembers = useMemo(() => {
     if (membershipFilter === "all") {
       return members;
@@ -638,6 +673,7 @@ export default function App() {
       setPlans(initialPlans);
       setAttendanceLogs(initialAttendanceLogs);
       setClasses(initialClasses);
+      setClassCatalog(initialClassCatalog);
       setReservations(initialReservations);
       setBudgets(initialBudgets);
       setEquipment(initialEquipment);
@@ -661,6 +697,7 @@ export default function App() {
       setPlans([]);
       setAttendanceLogs([]);
       setClasses([]);
+      setClassCatalog([]);
       setReservations([]);
       setBudgets([]);
       setEquipment([]);
@@ -781,12 +818,38 @@ export default function App() {
     );
   }
 
-  function handleCreateClass(gymClass) {
+  function handleCreateClassWithReservation(gymClass, memberId) {
     if (!["owner", "admin", "trainer"].includes(currentUser.role)) {
-      return;
+      return { ok: false, message: "No tienes permiso para programar clases." };
+    }
+
+    const member = members.find((item) => item.memberId === memberId);
+
+    if (!member) {
+      return { ok: false, message: "Selecciona un miembro para confirmar la reserva." };
+    }
+
+    if (member.status === "Suspended") {
+      return { ok: false, message: "La mensualidad del cliente esta suspendida." };
+    }
+
+    if (member.status === "Expired" || member.daysToExpire < 0) {
+      return { ok: false, message: "La mensualidad del cliente esta vencida." };
     }
 
     setClasses((current) => [gymClass, ...current]);
+    setReservations((current) => [
+      {
+        id: crypto.randomUUID(),
+        classId: gymClass.id,
+        memberId,
+        status: "confirmed",
+        createdAt: new Date().toISOString(),
+      },
+      ...current,
+    ]);
+
+    return { ok: true, message: `Clase creada y reserva confirmada para ${member.fullName}.` };
   }
 
   function handleReserveClass(classId, memberId) {
@@ -799,6 +862,10 @@ export default function App() {
 
     if (!gymClass || !member) {
       return { ok: false, message: "Selecciona una clase y un cliente validos." };
+    }
+
+    if (member.status === "Suspended") {
+      return { ok: false, message: "La mensualidad del cliente esta suspendida." };
     }
 
     if (member.status === "Expired" || member.daysToExpire < 0) {
@@ -957,6 +1024,34 @@ export default function App() {
     setActiveTab("membership");
   }
 
+  function handleEditMember(member) {
+    setEditingMemberId(member.memberId);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function handleCancelEditMember() {
+    setEditingMemberId(null);
+  }
+
+  function handleUpdateMember(updatedFields) {
+    setMembers((current) =>
+      current.map((member) =>
+        member.memberId === updatedFields.memberId ? { ...member, ...updatedFields } : member,
+      ),
+    );
+    setEditingMemberId(null);
+  }
+
+  function handleDeleteMember(memberId) {
+    setMembers((current) => current.filter((member) => member.memberId !== memberId));
+    if (selectedMemberId === memberId) {
+      setSelectedMemberId(undefined);
+    }
+    if (editingMemberId === memberId) {
+      setEditingMemberId(null);
+    }
+  }
+
   function handleCreatePlan(plan) {
     setPlans((current) => {
       const existingById = current.find((item) => item.id === plan.id);
@@ -977,6 +1072,28 @@ export default function App() {
 
   function handleDeletePlan(planId) {
     setPlans((current) => current.filter((plan) => plan.id !== planId));
+  }
+
+  function handleSaveClassTemplate(template) {
+    setClassCatalog((current) => {
+      const existingById = current.find((item) => item.id === template.id);
+
+      if (existingById) {
+        return current.map((item) => (item.id === template.id ? template : item));
+      }
+
+      const existingByName = current.find((item) => item.name.toLowerCase() === template.name.toLowerCase());
+
+      if (!existingByName) {
+        return [template, ...current];
+      }
+
+      return current.map((item) => (item.id === existingByName.id ? { ...template, id: existingByName.id } : item));
+    });
+  }
+
+  function handleDeleteClassTemplate(templateId) {
+    setClassCatalog((current) => current.filter((template) => template.id !== templateId));
   }
 
   function handleSaveGymProfile(profile) {
@@ -1060,7 +1177,8 @@ export default function App() {
       };
     }
 
-    const isBlocked = member.status === "Expired" || member.daysToExpire < 0;
+    const isSuspended = member.status === "Suspended";
+    const isBlocked = isSuspended || member.status === "Expired" || member.daysToExpire < 0;
     const log = {
       id: crypto.randomUUID(),
       memberId: member.memberId,
@@ -1071,7 +1189,9 @@ export default function App() {
       checkedOutAt: null,
       action: "check-in",
       reason: isBlocked
-        ? "Plan vencido"
+        ? isSuspended
+          ? "Plan suspendido"
+          : "Plan vencido"
         : member.status === "ExpiringSoon"
           ? "Plan por vencer"
           : "Plan activo",
@@ -1139,6 +1259,52 @@ export default function App() {
         ],
       };
     });
+  }
+
+  function handleRenewMembership(memberId, method, startDateOverride, planNameOverride) {
+    const member = members.find((item) => item.memberId === memberId);
+
+    if (!member) {
+      return;
+    }
+
+    const planChanged = Boolean(planNameOverride) && planNameOverride !== member.planName;
+    const plan = plans.find((item) => item.name === (planNameOverride || member.planName));
+    const durationDays = plan?.durationDays || 30;
+    const startDate = startDateOverride ? new Date(`${startDateOverride}T00:00:00`) : new Date();
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + durationDays);
+    const amount = planChanged ? plan?.price || 0 : member.subscriptionValue || plan?.price || 0;
+
+    handleUpdateMembership(memberId, {
+      startDate: startDate.toISOString().slice(0, 10),
+      endDate: endDate.toISOString().slice(0, 10),
+      planName: plan?.name || member.planName,
+      subscriptionValue: amount,
+    });
+
+    handleRegisterPayment({
+      memberName: member.fullName,
+      planName: plan?.name || member.planName,
+      amount,
+      method,
+    });
+  }
+
+  function handleToggleSuspend(memberId) {
+    setMembers((current) =>
+      current.map((member) => {
+        if (member.memberId !== memberId) {
+          return member;
+        }
+
+        if (member.status === "Suspended") {
+          return { ...member, ...calculateMembershipState(member.endDate) };
+        }
+
+        return { ...member, status: "Suspended", tailwindClass: "bg-gray-100 text-gray-800" };
+      }),
+    );
   }
 
   function handleRegisterExpense(expense) {
@@ -1354,6 +1520,9 @@ export default function App() {
               </div>
               <div className="flex flex-col items-end gap-2">
                 <div className="flex items-center gap-2">
+                  {hasPermission(currentUser, "membership") ? (
+                    <NotificationBell expiringMembers={expiringMembers} onReviewMember={reviewExpiringMember} />
+                  ) : null}
                   {hasPermission(currentUser, "setup") ? (
                     <button
                       type="button"
@@ -1375,9 +1544,6 @@ export default function App() {
                         <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.13.39.36.74.67 1 .31.27.7.41 1.11.4H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </button>
-                  ) : null}
-                  {hasPermission(currentUser, "membership") ? (
-                    <NotificationBell expiringMembers={expiringMembers} onReviewMember={reviewExpiringMember} />
                   ) : null}
                 </div>
                 <div className="flex items-center gap-3">
@@ -1417,8 +1583,14 @@ export default function App() {
             summary={financialSummary}
             currency="COP"
             memberCount={members.length}
-            onRegisterPayment={handleRegisterPayment}
+            members={members}
+            plans={plans}
             onRegisterExpense={handleRegisterExpense}
+            onRenewMembership={handleRenewMembership}
+            onToggleSuspend={handleToggleSuspend}
+            initialAction={financeIntent?.action || null}
+            initialPaymentQuery={financeIntent?.memberName || ""}
+            onInitialActionConsumed={() => setFinanceIntent(null)}
           />
         ) : null}
 
@@ -1434,7 +1606,13 @@ export default function App() {
         {activeTab === "clients" ? (
           <section className="space-y-6">
             {currentUser.role !== "trainer" ? (
-              <ClientForm onCreate={handleCreateMember} plans={plans} />
+              <ClientForm
+                onCreate={handleCreateMember}
+                onUpdate={handleUpdateMember}
+                onCancelEdit={handleCancelEditMember}
+                editingMember={editingMember}
+                plans={plans}
+              />
             ) : (
               <div className="rounded-2xl border border-sky-200 bg-sky-50 px-5 py-4 text-sm text-sky-800 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200">
                 Tu rol de entrenador permite consultar clientes. La creacion y las mensualidades estan reservadas para recepcion y administracion.
@@ -1459,13 +1637,15 @@ export default function App() {
                     setActiveTab("progress");
                   }
                 }}
+                onEditMember={currentUser.role !== "trainer" ? handleEditMember : undefined}
+                onDeleteMember={currentUser.role !== "trainer" ? handleDeleteMember : undefined}
               />
             </div>
           </section>
         ) : null}
 
         {activeTab === "membership" ? (
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="space-y-6">
             <section className="space-y-3">
               <div>
                 <h2 className="text-lg font-semibold text-gray-950 dark:text-white">Clientes</h2>
@@ -1521,13 +1701,14 @@ export default function App() {
           <CheckInDashboard
             members={members}
             attendanceLogs={attendanceLogs}
-            selectedMemberId={selectedMember?.memberId}
-            onSelectMember={(memberId) => setSelectedMemberId(memberId)}
             onCheckIn={handleCheckIn}
             onCheckOut={handleCheckOut}
-            onReviewMembership={(memberId) => {
+            canReviewPayment={hasPermission(currentUser, "finance")}
+            onReviewPayment={(memberId) => {
+              const member = members.find((item) => item.memberId === memberId);
               setSelectedMemberId(memberId);
-              setActiveTab("membership");
+              setFinanceIntent({ action: "payment", memberName: member?.fullName || "" });
+              setActiveTab("finance");
             }}
           />
         ) : null}
@@ -1535,11 +1716,12 @@ export default function App() {
         {activeTab === "classes" ? (
           <ClassSchedule
             classes={classes}
+            classCatalog={classCatalog}
             members={members}
             reservations={reservations}
             currentUser={currentUser}
             canManageClasses={["owner", "admin", "trainer"].includes(currentUser.role)}
-            onCreateClass={handleCreateClass}
+            onCreateClassWithReservation={handleCreateClassWithReservation}
             onReserve={handleReserveClass}
             onCancelReservation={handleCancelReservation}
           />
@@ -1571,10 +1753,13 @@ export default function App() {
           <GymSetup
             gymProfile={gymProfile}
             plans={plans}
+            classCatalog={classCatalog}
             onboarding={onboarding}
             onSaveGymProfile={handleSaveGymProfile}
             onCreatePlan={handleCreatePlan}
             onDeletePlan={handleDeletePlan}
+            onSaveClassTemplate={handleSaveClassTemplate}
+            onDeleteClassTemplate={handleDeleteClassTemplate}
           />
         ) : null}
 

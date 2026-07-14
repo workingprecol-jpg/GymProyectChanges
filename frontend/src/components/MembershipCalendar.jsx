@@ -106,7 +106,7 @@ export default function MembershipCalendar({ member, onUpdateMembership }) {
     <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
       <div className="flex flex-col gap-3 border-b border-gray-200 pb-3 sm:flex-row sm:items-start sm:justify-between dark:border-gray-700">
         <div>
-          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Mensualidad</p>
+          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Membresia</p>
           <h3 className="text-lg font-semibold text-gray-950 dark:text-white">{member.planName}</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {formatDate(member.startDate)} - {formatDate(member.endDate)}

@@ -2,25 +2,46 @@ import { useMemo, useState } from "react";
 
 const statusStyles = {
   Active: {
-    badge: "bg-green-100 text-green-800",
+    row: "bg-white dark:bg-gray-800",
+    badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+    accent: "border-l-emerald-500 dark:border-l-emerald-400",
+    hover: "hover:!bg-emerald-50 dark:hover:!bg-emerald-950/40",
     label: "Activa",
   },
   ExpiringSoon: {
-    badge: "bg-yellow-100 text-yellow-800",
+    row: "bg-white dark:bg-gray-800",
+    badge: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+    accent: "border-l-amber-500 dark:border-l-amber-400",
+    hover: "hover:!bg-amber-50 dark:hover:!bg-amber-950/40",
     label: "Por vencer",
   },
   Expired: {
-    badge: "bg-red-100 text-red-800",
+    row: "bg-white dark:bg-gray-800",
+    badge: "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
+    accent: "border-l-rose-500 dark:border-l-rose-400",
+    hover: "hover:!bg-rose-50 dark:hover:!bg-rose-950/40",
     label: "Vencida",
+  },
+  Suspended: {
+    row: "bg-gray-50 dark:bg-gray-900/60",
+    badge: "bg-gray-100 text-gray-800",
+    accent: "border-l-gray-400 dark:border-l-gray-500",
+    hover: "hover:!bg-gray-100 dark:hover:!bg-gray-800/60",
+    label: "Suspendida",
   },
 };
 
 function getStatusStyle(status) {
   return statusStyles[status] || {
+    row: "bg-white dark:bg-gray-800",
     badge: "bg-gray-100 text-gray-800",
+    accent: "border-l-gray-400 dark:border-l-gray-500",
+    hover: "hover:!bg-gray-100 dark:hover:!bg-gray-800/60",
     label: status || "Sin estado",
   };
 }
+
+const MAX_VISIBLE_MEMBERS = 10;
 
 function getDateKey(value) {
   const date = value ? new Date(value) : new Date();
@@ -31,7 +52,7 @@ function getDateKey(value) {
   return `${year}-${month}-${day}`;
 }
 
-function formatDate(value) {
+function formatDateShort(value) {
   if (!value) {
     return "-";
   }
@@ -39,11 +60,15 @@ function formatDate(value) {
   const [year, month, day] = String(value).split("-").map(Number);
   const date = year && month && day ? new Date(year, month - 1, day) : new Date(value);
 
-  return new Intl.DateTimeFormat("es-CO", {
+  const parts = new Intl.DateTimeFormat("es-CO", {
     year: "numeric",
     month: "short",
     day: "2-digit",
-  }).format(date);
+  }).formatToParts(date);
+
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  return `${byType.day} ${byType.month} ${byType.year}`;
 }
 
 function formatDateTime(value) {
@@ -55,18 +80,20 @@ function formatDateTime(value) {
   }).format(new Date(value));
 }
 
-function getAccessDecision(member) {
-  const isBlocked = !member || member.status === "Expired" || member.daysToExpire < 0;
+function getResultMessage(result) {
+  if (result.action === "check-out") {
+    return `Salida registrada ${formatDateTime(result.checkedOutAt)}.`;
+  }
 
-  return {
-    accessGranted: !isBlocked,
-    title: isBlocked ? "Acceso bloqueado" : "Acceso permitido",
-    description: isBlocked
-      ? "La mensualidad esta vencida. Revisa la renovacion antes de permitir la entrada."
-      : member.status === "ExpiringSoon"
-        ? "Puede entrar hoy. La mensualidad esta por vencer."
-        : "Puede entrar hoy con mensualidad activa.",
-  };
+  if (result.action === "duplicate") {
+    return result.reason;
+  }
+
+  if (!result.accessGranted) {
+    return `Entrada bloqueada: ${result.reason}.`;
+  }
+
+  return `Entrada registrada ${formatDateTime(result.checkedAt)}.`;
 }
 
 function StatCard({ label, value, tone = "emerald" }) {
@@ -93,41 +120,22 @@ function StatCard({ label, value, tone = "emerald" }) {
 export default function CheckInDashboard({
   members,
   attendanceLogs,
-  selectedMemberId,
-  onSelectMember,
   onCheckIn,
   onCheckOut,
-  onReviewMembership,
+  onReviewPayment,
+  canReviewPayment = false,
 }) {
-  const [query, setQuery] = useState("");
+  const [nameQuery, setNameQuery] = useState("");
   const [lastResult, setLastResult] = useState(null);
 
-  const selectedMember = useMemo(
-    () => members.find((member) => member.memberId === selectedMemberId) || members[0],
-    [members, selectedMemberId],
-  );
+  const visibleMembers = useMemo(() => {
+    const query = nameQuery.trim().toLowerCase();
 
-  const filteredMembers = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
+    return members.filter((member) => !query || member.fullName.toLowerCase().includes(query));
+  }, [members, nameQuery]);
 
-    if (!normalizedQuery) {
-      return members;
-    }
-
-    return members.filter((member) => {
-      const searchableText = [
-        member.fullName,
-        member.email,
-        member.phone,
-        member.planName,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return searchableText.includes(normalizedQuery);
-    });
-  }, [members, query]);
+  const totalVisibleCount = visibleMembers.length;
+  const displayedMembers = visibleMembers.slice(0, MAX_VISIBLE_MEMBERS);
 
   const todayLogs = useMemo(() => {
     const todayKey = getDateKey();
@@ -135,36 +143,20 @@ export default function CheckInDashboard({
     return attendanceLogs.filter((log) => getDateKey(log.checkedAt) === todayKey);
   }, [attendanceLogs]);
 
-  const accessDecision = getAccessDecision(selectedMember);
-  const openAttendance = attendanceLogs.find(
-    (log) => log.memberId === selectedMember?.memberId && log.accessGranted && !log.checkedOutAt,
-  );
-  const resultForSelected = lastResult?.memberId === selectedMember?.memberId ? lastResult : null;
-  const selectedStatusStyle = getStatusStyle(selectedMember?.status);
-
-  function handleSelectMember(memberId) {
-    setLastResult(null);
-    onSelectMember?.(memberId);
+  function getOpenAttendance(memberId) {
+    return attendanceLogs.find((log) => log.memberId === memberId && log.accessGranted && !log.checkedOutAt);
   }
 
-  function handleCheckIn() {
-    if (!selectedMember) {
-      return;
-    }
-
-    const log = onCheckIn?.(selectedMember.memberId);
+  function handleCheckIn(memberId) {
+    const log = onCheckIn?.(memberId);
 
     if (log) {
       setLastResult(log);
     }
   }
 
-  function handleCheckOut() {
-    if (!selectedMember || !openAttendance) {
-      return;
-    }
-
-    const log = onCheckOut?.(selectedMember.memberId);
+  function handleCheckOut(memberId) {
+    const log = onCheckOut?.(memberId);
 
     if (log) {
       setLastResult(log);
@@ -180,227 +172,193 @@ export default function CheckInDashboard({
         <StatCard label="Personas dentro" value={attendanceLogs.filter((log) => log.accessGranted && !log.checkedOutAt).length} tone="sky" />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <div className="space-y-6">
-          <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-            <div className="border-b border-gray-200 pb-3 dark:border-gray-700">
-              <h2 className="text-base font-semibold text-gray-950 dark:text-white">Check-in de entrada</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Busca un cliente y valida su ingreso.</p>
-            </div>
-
-            <div className="mt-4">
-              <label className="space-y-1 text-sm">
-                <span className="font-medium text-gray-700 dark:text-gray-300">Buscar cliente</span>
-                <input
-                  className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-950 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-50 dark:focus:border-gray-200 dark:focus:ring-gray-700"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Nombre, correo, telefono o plan"
-                />
-              </label>
-            </div>
-
-            <div className="mt-4 grid gap-2 md:grid-cols-2">
-              {filteredMembers.length === 0 ? (
-                <div className="rounded-md border border-gray-200 p-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400 md:col-span-2">
-                  No hay clientes que coincidan con la busqueda.
-                </div>
-              ) : null}
-
-              {filteredMembers.map((member) => {
-                const style = getStatusStyle(member.status);
-                const isSelected = selectedMember?.memberId === member.memberId;
-
-                return (
-                  <button
-                    key={member.memberId}
-                    type="button"
-                    onClick={() => handleSelectMember(member.memberId)}
-                    className={`min-h-24 rounded-md border p-3 text-left transition ${
-                      isSelected
-                        ? "border-gray-950 bg-gray-50 dark:border-white dark:bg-gray-900"
-                        : "border-gray-200 bg-white hover:border-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-gray-500"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-gray-950 dark:text-white">{member.fullName}</p>
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{member.email}</p>
-                      </div>
-                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${style.badge}`}>
-                        {style.label}
-                      </span>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-600 dark:text-gray-300">
-                      <span>{member.planName}</span>
-                      <span>Vence: {formatDate(member.endDate)}</span>
-                      <span>{member.daysToExpire} dias</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-            <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-              <h2 className="text-base font-semibold text-gray-950 dark:text-white">Registro reciente</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-                <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:bg-gray-900/70 dark:text-gray-300">
-                  <tr>
-                    <th className="px-4 py-3">Entrada</th>
-                    <th className="px-4 py-3">Salida</th>
-                    <th className="px-4 py-3">Cliente</th>
-                    <th className="px-4 py-3">Plan</th>
-                    <th className="px-4 py-3">Resultado</th>
-                    <th className="px-4 py-3">Motivo</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {attendanceLogs.slice(0, 8).map((log) => (
-                    <tr key={log.id} className="bg-white dark:bg-gray-800">
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatDateTime(log.checkedAt)}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
-                        {log.checkedOutAt ? formatDateTime(log.checkedOutAt) : log.accessGranted ? "Dentro" : "-"}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-gray-950 dark:text-white">{log.fullName}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{log.planName}</td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                            log.accessGranted ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {log.accessGranted ? "Permitido" : "Bloqueado"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{log.reason}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+          <h2 className="text-base font-semibold text-gray-950 dark:text-white">Check-in de entrada</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Busca un cliente y valida su entrada o su salida.</p>
         </div>
 
-        <aside className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-          {selectedMember ? (
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Cliente seleccionado</p>
-                <h2 className="mt-1 text-xl font-semibold text-gray-950 dark:text-white">{selectedMember.fullName}</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{selectedMember.email}</p>
-              </div>
+        {lastResult ? (
+          <div
+            className={`border-b px-4 py-2.5 text-sm ${
+              lastResult.accessGranted
+                ? "border-emerald-100 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200"
+                : "border-rose-100 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200"
+            }`}
+            aria-live="polite"
+          >
+            <span className="font-semibold">{lastResult.fullName}:</span> {getResultMessage(lastResult)}
+          </div>
+        ) : null}
 
-              <div className="rounded-md border border-gray-200 p-3 dark:border-gray-700">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Mensualidad</span>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${selectedStatusStyle.badge}`}>
-                    {selectedStatusStyle.label}
-                  </span>
-                </div>
-                <div className="mt-3 grid gap-3 text-sm text-gray-600 dark:text-gray-300">
-                  <div className="flex justify-between gap-4">
-                    <span>Plan</span>
-                    <span className="font-medium text-gray-900 dark:text-gray-100">{selectedMember.planName}</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span>Vence</span>
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                      {formatDate(selectedMember.endDate)}
+        {members.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400">No hay clientes disponibles para check-in.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
+              <thead className="bg-slate-50/80 text-left text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:bg-slate-950/60 dark:text-slate-400">
+                <tr>
+                  <th className="px-4 py-3">
+                    <div className="flex min-w-44 flex-col gap-2">
+                      <span>Miembro</span>
+                      <input
+                        type="text"
+                        value={nameQuery}
+                        onChange={(event) => setNameQuery(event.target.value)}
+                        placeholder="Buscar por nombre..."
+                        className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs font-medium normal-case text-gray-700 outline-none focus:border-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-200"
+                      />
+                    </div>
+                  </th>
+                  <th className="px-4 py-3 align-top">Membresia</th>
+                  <th className="px-4 py-3 align-top">Estado</th>
+                  <th className="px-4 py-3 align-top">Vence</th>
+                  <th className="px-4 py-3 align-top">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                {totalVisibleCount === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
+                      No se encontraron clientes con ese nombre.
+                    </td>
+                  </tr>
+                ) : (
+                  displayedMembers.map((member) => {
+                    const style = getStatusStyle(member.status);
+                    const isSuspended = member.status === "Suspended";
+                    const isExpired = member.status === "Expired" || member.daysToExpire < 0;
+                    const isBlocked = isExpired || isSuspended;
+                    const openAttendance = getOpenAttendance(member.memberId);
+
+                    return (
+                      <tr key={member.memberId} className={`${style.row} transition-colors ${style.hover}`}>
+                        <td className={`border-l-4 ${style.accent} px-4 py-3`}>
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-200">
+                              {member.fullName.split(" ").map((name) => name[0]).slice(0, 2).join("")}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-gray-950 dark:text-white">{member.fullName}</div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">{member.email}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{member.planName}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${style.badge}`}>
+                            {style.label}
+                          </span>
+                          {openAttendance ? (
+                            <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                              <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                              Dentro desde {formatDateTime(openAttendance.checkedAt)}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className={isExpired ? "font-medium text-rose-600 dark:text-rose-300" : "text-gray-700 dark:text-gray-300"}>
+                            {formatDateShort(member.endDate)}
+                          </div>
+                          {isExpired ? (
+                            <div className="text-xs text-rose-500 dark:text-rose-400">Plan finalizado</div>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleCheckIn(member.memberId)}
+                              disabled={isBlocked || Boolean(openAttendance)}
+                              title={
+                                isBlocked
+                                  ? isSuspended
+                                    ? "La membresia esta suspendida."
+                                    : "La membresia esta vencida."
+                                  : openAttendance
+                                    ? "El cliente ya tiene una entrada activa."
+                                    : "Registra el dia y la hora de entrada."
+                              }
+                              className="h-9 rounded-md bg-emerald-500 px-3 text-xs font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-gray-700 dark:disabled:text-gray-400"
+                            >
+                              Validar entrada
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCheckOut(member.memberId)}
+                              disabled={!openAttendance}
+                              title={openAttendance ? "Cierra la visita activa." : "El cliente no tiene una entrada activa."}
+                              className="h-9 rounded-md border border-sky-600 bg-sky-50 px-3 text-xs font-semibold text-sky-800 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-100 disabled:text-gray-400 dark:border-sky-500 dark:bg-sky-950/40 dark:text-sky-200 dark:hover:bg-sky-950/70 dark:disabled:border-gray-600 dark:disabled:bg-gray-800 dark:disabled:text-gray-500"
+                            >
+                              Validar salida
+                            </button>
+                            {isBlocked && canReviewPayment ? (
+                              <button
+                                type="button"
+                                onClick={() => onReviewPayment?.(member.memberId)}
+                                title="Abre el registro de pagos en Finanzas."
+                                className="h-9 rounded-md border border-amber-300 bg-white px-3 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 dark:border-amber-700 dark:bg-transparent dark:text-amber-300 dark:hover:bg-amber-950/30"
+                              >
+                                Revisar pago
+                              </button>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {totalVisibleCount > 0 ? (
+          <div className="border-t border-slate-200/80 px-4 py-3 text-center text-xs text-gray-500 dark:border-slate-800 dark:text-gray-400">
+            Mostrando {displayedMembers.length} de {totalVisibleCount} miembros registrados.
+          </div>
+        ) : null}
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+        <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+          <h2 className="text-base font-semibold text-gray-950 dark:text-white">Registro reciente</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
+            <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:bg-gray-900/70 dark:text-gray-300">
+              <tr>
+                <th className="px-4 py-3">Entrada</th>
+                <th className="px-4 py-3">Salida</th>
+                <th className="px-4 py-3">Cliente</th>
+                <th className="px-4 py-3">Plan</th>
+                <th className="px-4 py-3">Resultado</th>
+                <th className="px-4 py-3">Motivo</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              {attendanceLogs.slice(0, 8).map((log) => (
+                <tr key={log.id} className="bg-white dark:bg-gray-800">
+                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatDateTime(log.checkedAt)}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                    {log.checkedOutAt ? formatDateTime(log.checkedOutAt) : log.accessGranted ? "Dentro" : "-"}
+                  </td>
+                  <td className="px-4 py-3 font-medium text-gray-950 dark:text-white">{log.fullName}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{log.planName}</td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        log.accessGranted ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {log.accessGranted ? "Permitido" : "Bloqueado"}
                     </span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span>Dias restantes</span>
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                      {selectedMember.daysToExpire}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div
-                className={`rounded-md border p-4 ${
-                  resultForSelected
-                    ? resultForSelected.accessGranted
-                      ? "border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30"
-                      : "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30"
-                    : accessDecision.accessGranted
-                      ? "border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900"
-                      : "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30"
-                }`}
-                aria-live="polite"
-              >
-                <p
-                  className={`text-lg font-semibold ${
-                    resultForSelected
-                      ? resultForSelected.accessGranted
-                        ? "text-green-800 dark:text-green-200"
-                        : "text-red-800 dark:text-red-200"
-                      : accessDecision.accessGranted
-                        ? "text-gray-950 dark:text-white"
-                        : "text-red-800 dark:text-red-200"
-                  }`}
-                >
-                  {resultForSelected
-                    ? resultForSelected.action === "check-out"
-                      ? "Salida registrada"
-                      : resultForSelected.action === "duplicate"
-                        ? "Entrada ya registrada"
-                        : resultForSelected.accessGranted
-                          ? "Entrada registrada"
-                          : "Entrada bloqueada"
-                    : openAttendance
-                      ? "Cliente dentro del gimnasio"
-                    : accessDecision.title}
-                </p>
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                  {resultForSelected
-                    ? resultForSelected.reason
-                    : openAttendance
-                      ? `Entrada registrada ${formatDateTime(openAttendance.checkedAt)}. Valida la salida antes de registrar otro ingreso.`
-                      : accessDecision.description}
-                </p>
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
-                <button
-                  type="button"
-                  onClick={handleCheckIn}
-                  disabled={Boolean(openAttendance)}
-                  className={`h-10 rounded-md px-4 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-gray-700 dark:disabled:text-gray-400 ${
-                    accessDecision.accessGranted && !openAttendance
-                      ? "bg-emerald-500 shadow-md shadow-emerald-500/20 hover:bg-emerald-600"
-                      : "bg-red-600 hover:bg-red-700"
-                  }`}
-                >
-                  Validar entrada
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCheckOut}
-                  disabled={!openAttendance}
-                  className="h-10 rounded-md border border-sky-600 bg-sky-50 px-4 text-sm font-semibold text-sky-800 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-100 disabled:text-gray-400 dark:border-sky-500 dark:bg-sky-950/40 dark:text-sky-200 dark:hover:bg-sky-950/70 dark:disabled:border-gray-600 dark:disabled:bg-gray-800 dark:disabled:text-gray-500"
-                >
-                  Validar salida
-                </button>
-                {!accessDecision.accessGranted ? (
-                  <button
-                    type="button"
-                    onClick={() => onReviewMembership?.(selectedMember.memberId)}
-                    className="h-10 rounded-md border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-800 transition hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
-                  >
-                    Revisar mensualidad
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">No hay clientes disponibles para check-in.</p>
-          )}
-        </aside>
+                  </td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{log.reason}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
   );

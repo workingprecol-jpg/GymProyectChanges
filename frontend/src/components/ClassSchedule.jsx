@@ -22,11 +22,12 @@ function formatDate(date, time) {
 
 export default function ClassSchedule({
   classes,
+  classCatalog = [],
   members,
   reservations,
   canManageClasses,
   currentUser,
-  onCreateClass,
+  onCreateClassWithReservation,
   onReserve,
   onCancelReservation,
 }) {
@@ -34,6 +35,15 @@ export default function ClassSchedule({
   const [selectedMemberId, setSelectedMemberId] = useState(members[0]?.memberId || "");
   const [classForm, setClassForm] = useState({ ...initialClassForm, coach: currentUser.name });
   const [notice, setNotice] = useState(null);
+  const [memberQuery, setMemberQuery] = useState("");
+  const [scheduleMemberId, setScheduleMemberId] = useState("");
+  const [scheduleNotice, setScheduleNotice] = useState(null);
+
+  const scheduleMembers = useMemo(() => {
+    const query = memberQuery.trim().toLowerCase();
+
+    return members.filter((member) => !query || member.fullName.toLowerCase().includes(query));
+  }, [members, memberQuery]);
 
   const selectedClass = classes.find((item) => item.id === selectedClassId) || classes[0];
   const selectedReservations = reservations.filter(
@@ -54,10 +64,32 @@ export default function ClassSchedule({
     setNotice(result);
   }
 
+  function applyClassTemplate(name) {
+    const template = classCatalog.find((item) => item.name === name);
+
+    setClassForm((current) => ({
+      ...current,
+      name,
+      ...(template
+        ? {
+            coach: template.coach,
+            duration: String(template.duration),
+            capacity: String(template.capacity),
+            room: template.room,
+          }
+        : {}),
+    }));
+  }
+
   function createClass(event) {
     event.preventDefault();
 
     if (!classForm.name.trim() || !classForm.coach.trim()) {
+      return;
+    }
+
+    if (!scheduleMemberId) {
+      setScheduleNotice({ ok: false, message: "Selecciona un miembro de la lista para confirmar la reserva." });
       return;
     }
 
@@ -69,10 +101,15 @@ export default function ClassSchedule({
       duration: Number(classForm.duration),
       capacity: Number(classForm.capacity),
     };
-    onCreateClass(newClass);
-    setSelectedClassId(newClass.id);
-    setClassForm({ ...initialClassForm, coach: currentUser.name });
-    setNotice({ ok: true, message: "Clase creada correctamente." });
+    const result = onCreateClassWithReservation(newClass, scheduleMemberId);
+    setScheduleNotice(result);
+
+    if (result?.ok) {
+      setSelectedClassId(newClass.id);
+      setClassForm({ ...initialClassForm, coach: currentUser.name });
+      setScheduleMemberId("");
+      setMemberQuery("");
+    }
   }
 
   return (
@@ -163,35 +200,127 @@ export default function ClassSchedule({
             <form onSubmit={createClass} className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
               <div>
                 <h2 className="text-lg font-bold">Programar clase</h2>
-                <p className="text-sm text-slate-500">Crea una sesion y define entrenador, horario y capacidad.</p>
+                <p className="text-sm text-slate-500">Crea una sesion, elige un miembro y confirma su reserva.</p>
               </div>
-              <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {[
-                  ["name", "Clase", "Spinning", "text"],
-                  ["coach", "Entrenador", "Nombre del entrenador", "text"],
-                  ["date", "Fecha", "", "date"],
-                  ["time", "Hora", "", "time"],
-                  ["duration", "Duracion (min)", "60", "number"],
-                  ["capacity", "Capacidad", "12", "number"],
-                  ["room", "Espacio", "Salon principal", "text"],
-                ].map(([field, label, placeholder, type]) => (
-                  <label key={field} className={field === "room" ? "sm:col-span-2" : ""}>
-                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{label}</span>
-                    <input
-                      type={type}
-                      min={type === "number" ? "1" : undefined}
-                      value={classForm[field]}
-                      onChange={(event) => setClassForm((current) => ({ ...current, [field]: event.target.value }))}
-                      className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950"
-                      placeholder={placeholder}
-                      required
-                    />
-                  </label>
-                ))}
+              <div className="mt-5 grid gap-5 lg:grid-cols-[250px_minmax(0,1fr)]">
+                <div className="lg:border-r lg:border-slate-200 lg:pr-5 dark:lg:border-slate-800">
+                  <input
+                    type="text"
+                    value={memberQuery}
+                    onChange={(event) => setMemberQuery(event.target.value)}
+                    placeholder="Buscar por nombre..."
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950"
+                  />
+                  <p className="mt-3 border-b border-slate-200 pb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:border-slate-800">
+                    Miembro
+                  </p>
+                  <div className="mt-1 max-h-72 space-y-1 overflow-y-auto">
+                    {scheduleMembers.length === 0 ? (
+                      <p className="px-2 py-4 text-sm text-slate-500">No se encontraron miembros con ese nombre.</p>
+                    ) : (
+                      scheduleMembers.map((member) => {
+                        const isSelected = scheduleMemberId === member.memberId;
+
+                        return (
+                          <button
+                            key={member.memberId}
+                            type="button"
+                            onClick={() => {
+                              setScheduleMemberId(member.memberId);
+                              setScheduleNotice(null);
+                            }}
+                            className={`flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition ${
+                              isSelected
+                                ? "bg-slate-100 ring-1 ring-inset ring-slate-300 dark:bg-slate-800 dark:ring-slate-600"
+                                : "hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                            }`}
+                          >
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-200">
+                              {member.fullName.split(" ").map((name) => name[0]).slice(0, 2).join("")}
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-semibold text-slate-950 dark:text-white">{member.fullName}</span>
+                              <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{member.email}</span>
+                            </span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <label>
+                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Clase</span>
+                      <select
+                        value={classForm.name}
+                        onChange={(event) => applyClassTemplate(event.target.value)}
+                        className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950"
+                        required
+                      >
+                        <option value="" disabled>
+                          {classCatalog.length === 0 ? "Sin clases registradas" : "Selecciona una clase"}
+                        </option>
+                        {classCatalog.map((template) => (
+                          <option key={template.id} value={template.name}>
+                            {template.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {[
+                      ["coach", "Entrenador", "Nombre del entrenador", "text"],
+                      ["date", "Fecha", "", "date"],
+                      ["time", "Hora", "", "time"],
+                      ["duration", "Duracion (min)", "60", "number"],
+                      ["capacity", "Capacidad", "12", "number"],
+                      ["room", "Espacio", "Salon principal", "text"],
+                    ].map(([field, label, placeholder, type]) => (
+                      <label key={field} className={field === "room" ? "sm:col-span-2" : ""}>
+                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{label}</span>
+                        <input
+                          type={type}
+                          min={type === "number" ? "1" : undefined}
+                          value={classForm[field]}
+                          onChange={(event) => setClassForm((current) => ({ ...current, [field]: event.target.value }))}
+                          className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950"
+                          placeholder={placeholder}
+                          required
+                        />
+                      </label>
+                    ))}
+                  </div>
+
+                  {classCatalog.length === 0 ? (
+                    <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                      Registra clases en Configuracion para que aparezcan aqui automaticamente.
+                    </p>
+                  ) : null}
+
+                  {scheduleNotice ? (
+                    <p
+                      className={`mt-4 rounded-xl px-4 py-3 text-sm font-medium ${
+                        scheduleNotice.ok
+                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200"
+                          : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-200"
+                      }`}
+                      aria-live="polite"
+                    >
+                      {scheduleNotice.message}
+                    </p>
+                  ) : null}
+
+                  <div className="mt-5 flex justify-end">
+                    <button
+                      type="submit"
+                      className="h-11 rounded-xl bg-emerald-500 px-8 text-sm font-bold text-white shadow-md shadow-emerald-500/20 hover:bg-emerald-600"
+                    >
+                      Confirmar reserva
+                    </button>
+                  </div>
+                </div>
               </div>
-              <button type="submit" className="mt-5 h-11 rounded-xl bg-emerald-500 px-5 text-sm font-bold text-white shadow-md shadow-emerald-500/20 hover:bg-emerald-600">
-                Crear clase
-              </button>
             </form>
           ) : null}
         </div>
