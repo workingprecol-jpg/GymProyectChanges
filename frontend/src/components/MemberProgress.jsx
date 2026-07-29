@@ -1,11 +1,14 @@
 import { useMemo, useState } from "react";
+import { estimateBodyFat } from "../bodyFat.js";
 
 const initialMeasurement = {
   date: new Date().toISOString().slice(0, 10),
   weightKg: "",
   chestCm: "",
+  armCm: "",
   waistCm: "",
   hipCm: "",
+  legCm: "",
   bodyFatPercentage: "",
 };
 
@@ -25,28 +28,52 @@ function formatDate(value) {
   }).format(new Date(`${value}T00:00:00Z`));
 }
 
-function TrendChart({ records, field, label, unit, color = "text-emerald-500" }) {
-  const points = records
-    .filter((record) => Number.isFinite(record[field]))
-    .slice(-8);
+const MONTHS_SHOWN = 8;
 
-  if (points.length < 2) {
+function formatMonthLabel(monthKey, withYear) {
+  const month = new Intl.DateTimeFormat("es-CO", { month: "short", timeZone: "UTC" })
+    .format(new Date(`${monthKey}-01T00:00:00Z`))
+    .replace(".", "");
+  return withYear ? `${month} ${monthKey.slice(2, 4)}` : month;
+}
+
+function TrendChart({ records, field, label, unit, color = "text-emerald-500" }) {
+  // Un punto por mes, no por medicion: el eje mostraba la fecha exacta, asi que dos
+  // mediciones del mismo dia salian como dos etiquetas identicas y una linea plana.
+  // Se toma la ultima medicion de cada mes, que es donde quedo el cliente al cerrarlo.
+  const byMonth = new Map();
+  for (const record of records) {
+    if (!Number.isFinite(record[field])) continue;
+    byMonth.set(record.date.slice(0, 7), record);
+  }
+
+  // Sin mediciones no se dibuja ningun mes: un eje con meses vacios sugiere que hubo
+  // seguimiento y no lo hubo.
+  const points = [...byMonth.entries()].slice(-MONTHS_SHOWN);
+  if (points.length === 0) {
     return (
-      <div className="flex h-44 items-center justify-center rounded-2xl bg-slate-50 text-sm text-slate-400 dark:bg-slate-950/50">
-        Registra al menos dos mediciones de {label.toLowerCase()}.
+      <div className="flex h-44 items-center justify-center rounded-2xl bg-slate-50 px-4 text-center text-sm text-slate-400 dark:bg-slate-950/50">
+        Aun no hay mediciones de {label.toLowerCase()}.
       </div>
     );
   }
 
-  const values = points.map((record) => record[field]);
+  const values = points.map(([, record]) => record[field]);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = Math.max(max - min, 1);
   const width = 600;
   const height = 150;
-  const coordinates = points.map((record, index) => ({
-    x: 28 + index * ((width - 56) / (points.length - 1)),
-    y: 18 + ((max - record[field]) / range) * (height - 48),
+  const plotTop = 18;
+  const plotBottom = height - 30;
+  // Con un solo mes no hay pendiente que dibujar: el punto se centra en vez de pegarse
+  // arriba, que es donde caeria al ser a la vez el maximo y el minimo.
+  const isSinglePoint = points.length === 1;
+  const spanYears = points[0][0].slice(0, 4) !== points.at(-1)[0].slice(0, 4);
+  const coordinates = points.map(([monthKey, record], index) => ({
+    x: isSinglePoint ? width / 2 : 28 + index * ((width - 56) / (points.length - 1)),
+    y: isSinglePoint ? (plotTop + plotBottom) / 2 : plotTop + ((max - record[field]) / range) * (plotBottom - plotTop),
+    monthKey,
     record,
   }));
 
@@ -63,24 +90,31 @@ function TrendChart({ records, field, label, unit, color = "text-emerald-500" })
           {[35, 75, 115].map((y) => (
             <line key={y} x1="20" x2={width - 20} y1={y} y2={y} stroke="currentColor" strokeOpacity=".12" />
           ))}
-          <polyline
-            points={coordinates.map((point) => `${point.x},${point.y}`).join(" ")}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          {coordinates.map(({ x, y, record }) => (
-            <g key={record.id}>
+          {isSinglePoint ? null : (
+            <polyline
+              points={coordinates.map((point) => `${point.x},${point.y}`).join(" ")}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+          {coordinates.map(({ x, y, monthKey }) => (
+            <g key={monthKey}>
               <circle cx={x} cy={y} r="6" fill="currentColor" />
               <text x={x} y={height - 8} textAnchor="middle" fill="currentColor" className="text-[10px]">
-                {record.date.slice(5)}
+                {formatMonthLabel(monthKey, spanYears)}
               </text>
             </g>
           ))}
         </svg>
       </div>
+      {isSinglePoint ? (
+        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+          Un solo mes con mediciones. La tendencia se dibuja cuando haya otro.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -115,6 +149,49 @@ export default function MemberProgress({
   const latest = memberRecords.at(-1);
   const first = memberRecords[0];
 
+  // Estimacion con el peso de la ultima medicion; la altura, edad y sexo salen de la ficha
+  // porque no cambian entre mediciones. Solo se usa cuando no hay un valor medido a mano.
+  const estimatedBodyFat = estimateBodyFat({
+    weightKg: latest?.weightKg ?? member?.bodyMetrics?.weightKg,
+    heightCm: member?.bodyMetrics?.heightCm,
+    age: member?.age,
+    gender: member?.gender,
+  });
+
+  // La del formulario usa el peso que se esta escribiendo, para que la sugerencia
+  // acompane a lo que el usuario teclea y no al historial anterior.
+  const estimatedForForm = estimateBodyFat({
+    weightKg: measurement.weightKg,
+    heightCm: member?.bodyMetrics?.heightCm,
+    age: member?.age,
+    gender: member?.gender,
+  });
+
+  const bodyFatValue = latest?.bodyFatPercentage ?? estimatedBodyFat;
+  const bodyFatIsEstimated = latest?.bodyFatPercentage == null && estimatedBodyFat != null;
+
+  // Cuando falta algun dato la formula no se puede aplicar. Sin este aviso el campo se
+  // quedaba vacio sin explicar por que, que parece que la funcion esta rota.
+  const missingForBodyFat = [
+    Number(member?.bodyMetrics?.heightCm) > 0 ? null : "la estatura",
+    Number(member?.age) > 0 ? null : "la fecha de nacimiento",
+  ].filter(Boolean);
+
+  // Solo hay variacion si ambos extremos tienen el dato y son mediciones distintas. Antes
+  // restaba nulos, asi que una metrica nunca medida mostraba "0.0 % desde el inicio"
+  // debajo de un guion.
+  function diffSinceStart(field) {
+    if (!first || !latest || first === latest) return null;
+    // El descarte de null va antes de convertir: Number(null) es 0 y pasa isFinite, asi que
+    // una medida sin tomar se comparaba como cero y salia una variacion inventada
+    // ("-75.0 cm desde el inicio" debajo de un guion).
+    if (first[field] == null || latest[field] == null) return null;
+    const from = Number(first[field]);
+    const to = Number(latest[field]);
+    if (!Number.isFinite(from) || !Number.isFinite(to)) return null;
+    return to - from;
+  }
+
   if (!member) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">
@@ -131,9 +208,13 @@ export default function MemberProgress({
       date: measurement.date,
       weightKg: Number(measurement.weightKg) || null,
       chestCm: Number(measurement.chestCm) || null,
+      armCm: Number(measurement.armCm) || null,
       waistCm: Number(measurement.waistCm) || null,
       hipCm: Number(measurement.hipCm) || null,
-      bodyFatPercentage: Number(measurement.bodyFatPercentage) || null,
+      legCm: Number(measurement.legCm) || null,
+      // Si el entrenador no escribe un valor medido, se guarda la estimacion: asi la
+      // medicion queda con grasa en el historial en vez de un guion permanente.
+      bodyFatPercentage: Number(measurement.bodyFatPercentage) || estimatedForForm,
       recordedBy: currentUser.name,
     };
 
@@ -188,11 +269,23 @@ export default function MemberProgress({
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {[
-          ["Peso actual", latest?.weightKg, "kg", first && latest ? latest.weightKg - first.weightKg : null],
-          ["Cintura", latest?.waistCm, "cm", first && latest ? latest.waistCm - first.waistCm : null],
-          ["Grasa corporal", latest?.bodyFatPercentage, "%", first && latest ? latest.bodyFatPercentage - first.bodyFatPercentage : null],
+          // El peso cae a la ficha del cliente si aun no hay mediciones: los socios dados de
+          // alta antes de que el registro creara la medicion inicial no tienen historial.
+          ["Peso actual", latest?.weightKg ?? member.bodyMetrics?.weightKg, "kg", diffSinceStart("weightKg")],
+          // La estatura sale siempre de la ficha, no del historial: no es una medida que
+          // cambie con el entrenamiento, asi que no tiene serie temporal ni variacion.
+          ["Estatura", member.bodyMetrics?.heightCm, "cm", null],
+          ["Cintura", latest?.waistCm, "cm", diffSinceStart("waistCm")],
+          // Sin medicion manual se muestra la estimada, y la etiqueta lo dice para que
+          // nadie la confunda con una lectura de plicometro o bioimpedancia.
+          [
+            bodyFatIsEstimated ? "Grasa corporal (estimada)" : "Grasa corporal",
+            bodyFatValue,
+            "%",
+            diffSinceStart("bodyFatPercentage"),
+          ],
           ["Objetivos activos", memberGoals.filter((item) => !item.completed).length, "", null],
         ].map(([label, value, unit, change]) => (
           <article key={label} className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
@@ -220,15 +313,20 @@ export default function MemberProgress({
         <form onSubmit={submitMeasurement} className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
           <h2 className="text-lg font-bold">Registrar medicion</h2>
           <p className="text-sm text-slate-500">Agrega una nueva evaluacion corporal al historial.</p>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[
               ["date", "Fecha", "date"],
               ["weightKg", "Peso kg", "number"],
               ["chestCm", "Pecho cm", "number"],
+              ["armCm", "Brazo cm", "number"],
               ["waistCm", "Cintura cm", "number"],
               ["hipCm", "Cadera cm", "number"],
+              ["legCm", "Pierna cm", "number"],
               ["bodyFatPercentage", "Grasa %", "number"],
             ].map(([field, label, type]) => (
+              // La grasa se calcula sola al escribir el peso. La sugerencia va de placeholder
+              // y no de value, para poder sobrescribirla con una medicion real sin pelearse
+              // con el campo controlado.
               <label key={field}>
                 <span className="text-sm font-semibold">{label}</span>
                 <input
@@ -239,10 +337,23 @@ export default function MemberProgress({
                   onChange={(event) => setMeasurement((current) => ({ ...current, [field]: event.target.value }))}
                   className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950"
                   required={field === "date" || field === "weightKg"}
+                  placeholder={field === "bodyFatPercentage" && estimatedForForm != null ? `${estimatedForForm} (estimada)` : undefined}
                 />
               </label>
             ))}
           </div>
+          {estimatedForForm != null ? (
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+              La grasa se estima en <span className="font-semibold">{estimatedForForm}%</span> con el peso, la estatura,
+              la edad y el sexo del cliente. Si la dejas vacia se guarda ese valor; escribe el tuyo si la mediste con
+              plicometro o bioimpedancia.
+            </p>
+          ) : missingForBodyFat.length > 0 ? (
+            <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
+              No se puede estimar la grasa: falta {missingForBodyFat.join(" y ")} de este cliente. Completala en su
+              ficha y el calculo aparecera solo. Mientras tanto puedes escribir el porcentaje a mano.
+            </p>
+          ) : null}
           <button type="submit" className="mt-5 h-11 rounded-xl bg-violet-500 px-5 text-sm font-bold text-white shadow-md shadow-violet-500/20 hover:bg-violet-600">
             Guardar medicion
           </button>
@@ -311,14 +422,14 @@ export default function MemberProgress({
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-lg shadow-emerald-500/10 dark:border-slate-800 dark:bg-slate-900 dark:shadow-emerald-900/30">
+        <div className="border-b border-l-4 border-slate-200 border-l-emerald-500 px-5 py-4 dark:border-slate-800 dark:border-l-emerald-400">
           <h2 className="font-bold">Historial de mediciones</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-950/60">
-              <tr><th className="px-5 py-3">Fecha</th><th className="px-5 py-3">Peso</th><th className="px-5 py-3">Pecho</th><th className="px-5 py-3">Cintura</th><th className="px-5 py-3">Cadera</th><th className="px-5 py-3">Grasa</th><th className="px-5 py-3">Registrado por</th></tr>
+            <thead className="bg-transparent text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              <tr><th className="border-l-4 border-l-emerald-500 px-5 py-3 dark:border-l-emerald-400">Fecha</th><th className="px-5 py-3">Peso</th><th className="px-5 py-3">Pecho</th><th className="px-5 py-3">Brazo</th><th className="px-5 py-3">Cintura</th><th className="px-5 py-3">Cadera</th><th className="px-5 py-3">Pierna</th><th className="px-5 py-3">Grasa</th><th className="px-5 py-3">Registrado por</th></tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {[...memberRecords].reverse().map((record) => (
@@ -326,8 +437,10 @@ export default function MemberProgress({
                   <td className="px-5 py-4 font-semibold">{formatDate(record.date)}</td>
                   <td className="px-5 py-4">{record.weightKg ?? "-"} kg</td>
                   <td className="px-5 py-4">{record.chestCm ?? "-"} cm</td>
+                  <td className="px-5 py-4">{record.armCm ?? "-"} cm</td>
                   <td className="px-5 py-4">{record.waistCm ?? "-"} cm</td>
                   <td className="px-5 py-4">{record.hipCm ?? "-"} cm</td>
+                  <td className="px-5 py-4">{record.legCm ?? "-"} cm</td>
                   <td className="px-5 py-4">{record.bodyFatPercentage ?? "-"}%</td>
                   <td className="px-5 py-4 text-slate-500">{record.recordedBy}</td>
                 </tr>

@@ -155,8 +155,8 @@ export default function OperationsDashboard({
             <button type="submit" className="mt-5 h-11 rounded-xl bg-emerald-500 px-5 text-sm font-bold text-white hover:bg-emerald-600">Agregar equipo</button>
           </form>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900">
-            <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-800"><h2 className="font-bold">Inventario y mantenimiento</h2></div>
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-lg shadow-emerald-500/10 dark:border-slate-800 dark:bg-slate-900 dark:shadow-emerald-900/30">
+            <div className="border-b border-l-4 border-slate-200 border-l-emerald-500 px-5 py-4 dark:border-slate-800 dark:border-l-emerald-400"><h2 className="font-bold">Inventario y mantenimiento</h2></div>
             <div className="divide-y divide-slate-100 dark:divide-slate-800">
               {equipment.map((item) => (
                 <div key={item.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -200,12 +200,12 @@ export default function OperationsDashboard({
             <button type="submit" className="mt-5 h-11 rounded-xl bg-emerald-500 px-5 text-sm font-bold text-white hover:bg-emerald-600">Guardar turno</button>
           </form>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900">
-            <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-800"><h2 className="font-bold">Turnos y comisiones</h2></div>
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-lg shadow-emerald-500/10 dark:border-slate-800 dark:bg-slate-900 dark:shadow-emerald-900/30">
+            <div className="border-b border-l-4 border-slate-200 border-l-emerald-500 px-5 py-4 dark:border-slate-800 dark:border-l-emerald-400"><h2 className="font-bold">Turnos y comisiones</h2></div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-950/60">
-                  <tr><th className="px-5 py-3">Empleado</th><th className="px-5 py-3">Turno</th><th className="px-5 py-3">Comision</th></tr>
+                <thead className="bg-transparent text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  <tr><th className="border-l-4 border-l-emerald-500 px-5 py-3 dark:border-l-emerald-400">Empleado</th><th className="px-5 py-3">Turno</th><th className="px-5 py-3">Comision</th></tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {shifts.map((shift) => (

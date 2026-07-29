@@ -10,6 +10,13 @@ const initialClassForm = {
   room: "Salon principal",
 };
 
+// Plazas fijas de entrenador. No hay entidad ni endpoint para esto todavia, asi que
+// son etiquetas locales y no usuarios reales del gimnasio.
+const trainerSlots = Array.from({ length: 6 }, (_, index) => ({
+  id: `entrenador-${index + 1}`,
+  label: `Entrenador ${index + 1}`,
+}));
+
 function formatDate(date, time) {
   return new Intl.DateTimeFormat("es-CO", {
     weekday: "short",
@@ -27,6 +34,9 @@ export default function ClassSchedule({
   reservations,
   canManageClasses,
   currentUser,
+  trainerAssignments = {},
+  onAssignMembersToTrainer,
+  onUnassignMemberTrainer,
   onCreateClassWithReservation,
   onReserve,
   onCancelReservation,
@@ -38,12 +48,57 @@ export default function ClassSchedule({
   const [memberQuery, setMemberQuery] = useState("");
   const [scheduleMemberId, setScheduleMemberId] = useState("");
   const [scheduleNotice, setScheduleNotice] = useState(null);
+  const [assignmentQuery, setAssignmentQuery] = useState("");
+  const [selectedForAssignment, setSelectedForAssignment] = useState([]);
+  const [activeTrainerId, setActiveTrainerId] = useState("");
+  const [trainerFilter, setTrainerFilter] = useState("all");
+  const [assignmentNotice, setAssignmentNotice] = useState(null);
 
   const scheduleMembers = useMemo(() => {
     const query = memberQuery.trim().toLowerCase();
 
     return members.filter((member) => !query || member.fullName.toLowerCase().includes(query));
   }, [members, memberQuery]);
+
+  const assignmentMembers = useMemo(() => {
+    const query = assignmentQuery.trim().toLowerCase();
+
+    return members.filter((member) => !query || member.fullName.toLowerCase().includes(query));
+  }, [members, assignmentQuery]);
+
+  // La seleccion se guarda por id, no por fila visible: al cambiar el filtro se conserva
+  // lo ya marcado, que es lo que permite filtrar y seguir sumando miembros.
+  const selectedIds = useMemo(() => new Set(selectedForAssignment), [selectedForAssignment]);
+  const visibleIds = assignmentMembers.map((member) => member.memberId);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const someVisibleSelected = visibleIds.some((id) => selectedIds.has(id));
+  const activeTrainer = trainerSlots.find((item) => item.id === activeTrainerId);
+
+  // Se cuenta sobre los miembros actuales, no sobre el mapa: un miembro eliminado no
+  // debe seguir sumando en el total de su entrenador.
+  const assignmentCounts = useMemo(() => {
+    const counts = {};
+
+    members.forEach((member) => {
+      const trainerId = trainerAssignments[member.memberId];
+
+      if (trainerId) {
+        counts[trainerId] = (counts[trainerId] || 0) + 1;
+      }
+    });
+
+    return counts;
+  }, [members, trainerAssignments]);
+
+  const assignedMembers = useMemo(
+    () =>
+      members.filter((member) => {
+        const trainerId = trainerAssignments[member.memberId];
+
+        return trainerFilter === "all" ? Boolean(trainerId) : trainerId === trainerFilter;
+      }),
+    [members, trainerAssignments, trainerFilter],
+  );
 
   const selectedClass = classes.find((item) => item.id === selectedClassId) || classes[0];
   const selectedReservations = reservations.filter(
@@ -58,10 +113,42 @@ export default function ClassSchedule({
     [classes],
   );
 
-  function reserve(event) {
+  async function reserve(event) {
     event.preventDefault();
-    const result = onReserve(selectedClass.id, selectedMemberId);
+    const result = await onReserve(selectedClass.id, selectedMemberId);
     setNotice(result);
+  }
+
+  function toggleMemberSelection(memberId) {
+    setAssignmentNotice(null);
+    setSelectedForAssignment((current) =>
+      current.includes(memberId) ? current.filter((id) => id !== memberId) : [...current, memberId],
+    );
+  }
+
+  function toggleVisibleSelection() {
+    setAssignmentNotice(null);
+    setSelectedForAssignment((current) =>
+      allVisibleSelected
+        ? current.filter((id) => !visibleIds.includes(id))
+        : Array.from(new Set([...current, ...visibleIds])),
+    );
+  }
+
+  function assignSelectedMembers() {
+    if (!activeTrainer || selectedForAssignment.length === 0) {
+      return;
+    }
+
+    const total = selectedForAssignment.length;
+
+    onAssignMembersToTrainer?.(activeTrainer.id, selectedForAssignment);
+    setAssignmentNotice({
+      message: `${total} ${total === 1 ? "miembro asignado" : "miembros asignados"} a ${activeTrainer.label}.`,
+    });
+    setSelectedForAssignment([]);
+    // Deja el filtro en el entrenador recien asignado para que el conteo se vea de una vez.
+    setTrainerFilter(activeTrainer.id);
   }
 
   function applyClassTemplate(name) {
@@ -81,7 +168,7 @@ export default function ClassSchedule({
     }));
   }
 
-  function createClass(event) {
+  async function createClass(event) {
     event.preventDefault();
 
     if (!classForm.name.trim() || !classForm.coach.trim()) {
@@ -101,11 +188,12 @@ export default function ClassSchedule({
       duration: Number(classForm.duration),
       capacity: Number(classForm.capacity),
     };
-    const result = onCreateClassWithReservation(newClass, scheduleMemberId);
+    const result = await onCreateClassWithReservation(newClass, scheduleMemberId);
     setScheduleNotice(result);
 
     if (result?.ok) {
-      setSelectedClassId(newClass.id);
+      // The API assigns the real id; fall back to the local one for demo accounts.
+      setSelectedClassId(result.id || newClass.id);
       setClassForm({ ...initialClassForm, coach: currentUser.name });
       setScheduleMemberId("");
       setMemberQuery("");
@@ -147,6 +235,263 @@ export default function ClassSchedule({
           <p className="mt-2 text-3xl font-bold text-violet-600">{new Set(classes.map((item) => item.coach)).size}</p>
         </article>
       </div>
+
+      {canManageClasses ? (
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-lg shadow-emerald-500/10 dark:border-slate-800 dark:bg-slate-900 dark:shadow-emerald-900/30">
+          <div>
+            <h2 className="text-lg font-bold">Asignacion de entrenadores</h2>
+            <p className="text-sm text-slate-500">
+              Filtra y marca los miembros que quieras, elige un entrenador y confirma la asignacion.
+            </p>
+          </div>
+
+          <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
+            <div className="overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800">
+              <div className="max-h-80 overflow-auto">
+                <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
+                  <thead className="sticky top-0 z-10 bg-white text-left text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                    <tr>
+                      <th className="w-12 border-l-4 border-l-emerald-500 px-4 py-3 dark:border-l-emerald-400">
+                        <input
+                          type="checkbox"
+                          checked={allVisibleSelected}
+                          ref={(node) => {
+                            if (node) {
+                              node.indeterminate = someVisibleSelected && !allVisibleSelected;
+                            }
+                          }}
+                          onChange={toggleVisibleSelection}
+                          disabled={visibleIds.length === 0}
+                          aria-label="Seleccionar todos los miembros visibles"
+                          className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 dark:border-gray-600"
+                        />
+                      </th>
+                      <th className="px-4 py-3">
+                        <div className="flex min-w-44 flex-col gap-2">
+                          <span>Miembro</span>
+                          <input
+                            type="text"
+                            value={assignmentQuery}
+                            onChange={(event) => setAssignmentQuery(event.target.value)}
+                            placeholder="Buscar por nombre..."
+                            className="h-8 rounded-md border border-gray-300 !bg-gray-50 px-2 text-xs font-medium normal-case text-gray-700 outline-none focus:border-gray-900 dark:border-gray-600 dark:!bg-slate-900 dark:text-gray-100 dark:focus:border-gray-200"
+                          />
+                        </div>
+                      </th>
+                      <th className="px-4 py-3 text-right">Entrenador</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {assignmentMembers.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
+                          {members.length === 0
+                            ? "No hay miembros registrados."
+                            : "No se encontraron miembros con ese nombre."}
+                        </td>
+                      </tr>
+                    ) : null}
+                    {assignmentMembers.map((member) => {
+                      const isChecked = selectedIds.has(member.memberId);
+                      const trainer = trainerSlots.find((item) => item.id === trainerAssignments[member.memberId]);
+
+                      return (
+                        <tr
+                          key={member.memberId}
+                          onClick={() => toggleMemberSelection(member.memberId)}
+                          className={`cursor-pointer transition-colors ${
+                            isChecked
+                              ? "bg-emerald-50/70 dark:bg-emerald-950/20"
+                              : "hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                          }`}
+                        >
+                          <td
+                            className={`border-l-4 px-4 py-3 ${
+                              isChecked ? "border-l-emerald-500 dark:border-l-emerald-400" : "border-l-transparent"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleMemberSelection(member.memberId)}
+                              onClick={(event) => event.stopPropagation()}
+                              aria-label={`Seleccionar a ${member.fullName}`}
+                              className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 dark:border-gray-600"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-200">
+                                {member.fullName.split(" ").map((name) => name[0]).slice(0, 2).join("")}
+                              </span>
+                              <div className="min-w-0">
+                                <div className="truncate font-semibold text-gray-950 dark:text-white">
+                                  {member.fullName}
+                                </div>
+                                <div className="truncate text-xs text-gray-500 dark:text-gray-400">{member.email}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {trainer ? (
+                              <span className="inline-flex rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+                                {trainer.label}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-slate-400 dark:text-slate-500">Sin asignar</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-l-4 border-slate-200/80 border-l-emerald-500 px-4 py-3 text-xs text-gray-500 dark:border-slate-800 dark:border-l-emerald-400 dark:text-gray-400">
+                <span>
+                  Mostrando {assignmentMembers.length} de {members.length} miembros ·{" "}
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    {selectedForAssignment.length} seleccionados
+                  </span>
+                </span>
+                {selectedForAssignment.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedForAssignment([])}
+                    className="font-semibold text-rose-600 hover:text-rose-700"
+                  >
+                    Limpiar seleccion
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-slate-200/80 p-4 dark:border-slate-800">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                  Entrenadores
+                </p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                  <div className="grid grid-cols-2 gap-2">
+                    {trainerSlots.map((trainer) => {
+                      const isActive = activeTrainerId === trainer.id;
+
+                      return (
+                        <button
+                          key={trainer.id}
+                          type="button"
+                          onClick={() => {
+                            setActiveTrainerId(trainer.id);
+                            setAssignmentNotice(null);
+                          }}
+                          className={`h-11 rounded-xl border px-3 text-sm font-semibold transition ${
+                            isActive
+                              ? "border-violet-400 bg-violet-50 text-violet-700 shadow-sm dark:border-violet-500 dark:bg-violet-950/40 dark:text-violet-200"
+                              : "border-slate-200 bg-white text-slate-600 hover:border-violet-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+                          }`}
+                        >
+                          {trainer.label}
+                          {assignmentCounts[trainer.id] ? (
+                            <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-violet-600 px-1.5 text-[11px] font-bold text-white dark:bg-violet-500">
+                              {assignmentCounts[trainer.id]}
+                            </span>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={assignSelectedMembers}
+                    disabled={!activeTrainer || selectedForAssignment.length === 0}
+                    className="rounded-xl bg-emerald-500 px-6 py-3 text-sm font-bold text-white shadow-md shadow-emerald-500/20 transition hover:bg-emerald-600 disabled:opacity-40"
+                  >
+                    Asignar
+                  </button>
+                </div>
+
+                <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                  {!activeTrainer
+                    ? "Elige un entrenador para habilitar la asignacion."
+                    : selectedForAssignment.length === 0
+                      ? `Selecciona miembros en la tabla para asignarlos a ${activeTrainer.label}.`
+                      : `Se ${
+                          selectedForAssignment.length === 1
+                            ? "asignara 1 miembro"
+                            : `asignaran ${selectedForAssignment.length} miembros`
+                        } a ${activeTrainer.label}.`}
+                </p>
+
+                {assignmentNotice ? (
+                  <p
+                    className="mt-3 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200"
+                    aria-live="polite"
+                  >
+                    {assignmentNotice.message}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="rounded-2xl border border-slate-200/80 p-4 dark:border-slate-800">
+                <label className="block">
+                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    Filtrar por entrenador
+                  </span>
+                  <select
+                    value={trainerFilter}
+                    onChange={(event) => setTrainerFilter(event.target.value)}
+                    className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950"
+                  >
+                    <option value="all">Todos los entrenadores</option>
+                    {trainerSlots.map((trainer) => (
+                      <option key={trainer.id} value={trainer.id}>
+                        {trainer.label} ({assignmentCounts[trainer.id] || 0})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+                  <span className="text-lg font-bold text-violet-600 dark:text-violet-400">{assignedMembers.length}</span>{" "}
+                  {assignedMembers.length === 1 ? "miembro asignado" : "miembros asignados"}
+                  {trainerFilter === "all" ? " en total" : ""}.
+                </p>
+
+                <div className="mt-2 max-h-44 space-y-1 overflow-y-auto">
+                  {assignedMembers.length === 0 ? (
+                    <p className="py-3 text-sm text-slate-500 dark:text-slate-400">Aun no hay miembros asignados.</p>
+                  ) : (
+                    assignedMembers.map((member) => (
+                      <div
+                        key={member.memberId}
+                        className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-950 dark:text-white">
+                            {member.fullName}
+                          </p>
+                          {trainerFilter === "all" ? (
+                            <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                              {trainerSlots.find((item) => item.id === trainerAssignments[member.memberId])?.label}
+                            </p>
+                          ) : null}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => onUnassignMemberTrainer?.(member.memberId)}
+                          className="shrink-0 text-xs font-semibold text-rose-600 hover:text-rose-700"
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_390px]">
         <div className="space-y-6">
@@ -366,8 +711,8 @@ export default function ClassSchedule({
             </button>
           </form>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900">
-            <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-lg shadow-emerald-500/10 dark:border-slate-800 dark:bg-slate-900 dark:shadow-emerald-900/30">
+            <div className="border-b border-l-4 border-slate-200 border-l-emerald-500 px-5 py-4 dark:border-slate-800 dark:border-l-emerald-400">
               <h2 className="font-bold">Lista de asistentes</h2>
               <p className="text-xs text-slate-500">{selectedReservations.length} reservas confirmadas</p>
             </div>

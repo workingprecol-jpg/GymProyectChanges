@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  /* Paleta de marca Gym Assist: azul marino de fondo (el verde usa la escala
+     emerald estándar de Tailwind, que coincide con los hex de la marca). */
+  --color-navy-950: #050d1a;
+  --color-navy-900: #0a1628;
+
+  --font-sans: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* Animaciones ambientales (flotación de tarjetas y orbes del fondo) */
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-orb: orb 22s ease-in-out infinite alternate;
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-14px);
+    }
+  }
+
+  @keyframes orb {
+    0% {
+      transform: translate(0, 0) scale(1);
+    }
+    50% {
+      transform: translate(48px, -36px) scale(1.12);
+    }
+    100% {
+      transform: translate(-36px, 28px) scale(0.94);
+    }
+  }
+}
+
+/* Patrón de cuadrícula sutil que cubre el fondo de toda la página */
+@utility bg-grid {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.03) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+/* Respeta la preferencia del sistema de movimiento reducido */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .animate-float,
+  .animate-orb {
+    animation: none;
+  }
+}

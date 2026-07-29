@@ -12,14 +12,14 @@ export default function AccessManagement({ users, currentUser, onCreateUser, onT
   const [form, setForm] = useState(initialForm);
   const [notice, setNotice] = useState("");
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
 
     if (!form.name.trim() || !form.email.trim() || !form.password) {
       return;
     }
 
-    const result = onCreateUser({
+    const result = await onCreateUser({
       ...form,
       name: form.name.trim(),
       email: form.email.trim().toLowerCase(),
@@ -90,16 +90,16 @@ export default function AccessManagement({ users, currentUser, onCreateUser, onT
           </button>
         </form>
 
-        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900">
-          <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-lg shadow-emerald-500/10 dark:border-slate-800 dark:bg-slate-900 dark:shadow-emerald-900/30">
+          <div className="border-b border-l-4 border-slate-200 border-l-emerald-500 px-5 py-4 dark:border-slate-800 dark:border-l-emerald-400">
             <h2 className="text-lg font-bold">Usuarios y permisos</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">Los cambios de estado se aplican al siguiente inicio de sesion.</p>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-left text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:bg-slate-950/60">
+              <thead className="bg-transparent text-left text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
                 <tr>
-                  <th className="px-5 py-3">Usuario</th>
+                  <th className="border-l-4 border-l-emerald-500 px-5 py-3 dark:border-l-emerald-400">Usuario</th>
                   <th className="px-5 py-3">Rol</th>
                   <th className="px-5 py-3">Permisos</th>
                   <th className="px-5 py-3">Estado</th>

@@ -1,24 +1,25 @@
 import { useState } from "react";
-import { getRoleLabel } from "../auth.js";
 import GymRegistrationForm from "./GymRegistrationForm.jsx";
+import InviteCodeGate from "./InviteCodeGate.jsx";
 
-export default function AuthScreen({ users, onLogin, onRegisterGym }) {
-  const [mode, setMode] = useState("login");
+export default function AuthScreen({ onLogin, onRegisterGym }) {
+  const hasInviteCodeInUrl = new URLSearchParams(window.location.search).has("code");
+  const [mode, setMode] = useState(hasInviteCodeInUrl ? "code" : "login");
+  const [inviteCode, setInviteCode] = useState("");
   const [form, setForm] = useState({ email: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
-    const result = onLogin(form.email.trim().toLowerCase(), form.password);
+    setIsSubmitting(true);
+    const result = await onLogin(form.email.trim().toLowerCase(), form.password);
+    setIsSubmitting(false);
 
     if (!result.ok) {
       setError(result.message);
     }
-  }
-
-  function useDemo(user) {
-    setForm({ email: user.email, password: user.password });
-    setError("");
   }
 
   return (
@@ -39,7 +40,7 @@ export default function AuthScreen({ users, onLogin, onRegisterGym }) {
               </svg>
             </div>
             <div>
-              <p className="text-xl font-bold">GymFlow</p>
+              <p className="text-xl font-bold">Gym Assist</p>
               <p className="text-sm text-emerald-100">Management suite</p>
             </div>
           </div>
@@ -52,18 +53,41 @@ export default function AuthScreen({ users, onLogin, onRegisterGym }) {
             </p>
           </div>
 
-          <p className="text-xs text-emerald-100/70">Demo local. La autenticacion productiva requiere el backend y contrasenas cifradas.</p>
+          <p className="text-xs text-emerald-100/70">Los gimnasios registrados usan autenticacion real contra el backend. Las cuentas demo son solo un modo local de exploracion.</p>
         </section>
 
         <section className="max-h-[calc(100vh-5rem)] overflow-y-auto bg-white p-6 text-slate-950 sm:p-10 dark:bg-slate-900 dark:text-white">
-          <div className="lg:hidden">
-            <p className="text-xl font-bold text-emerald-600">GymFlow</p>
+          {/* Fila superior: la marca (solo en movil, en escritorio ya esta en el
+              panel verde) y la salida hacia la landing. El dashboard vive bajo
+              /app/ y la landing en la raiz del dominio, por eso href="/". */}
+          <div className="mb-6 flex items-center justify-between gap-4">
+            <p className="text-xl font-bold text-emerald-600 lg:hidden">Gym Assist</p>
+            <a
+              href="/"
+              className="ml-auto inline-flex items-center gap-1.5 rounded-lg text-sm font-semibold text-slate-500 transition hover:text-emerald-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-slate-400 dark:hover:text-emerald-400"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+                <path d="M15 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Volver al inicio
+            </a>
           </div>
-          {mode === "register" ? (
-            <GymRegistrationForm onRegister={onRegisterGym} onShowLogin={() => setMode("login")} />
+          {mode === "code" ? (
+            <InviteCodeGate
+              onValidated={(code) => {
+                setInviteCode(code);
+                setMode("register");
+              }}
+              onShowLogin={() => setMode("login")}
+            />
+          ) : mode === "register" ? (
+            <GymRegistrationForm
+              onRegister={(form) => onRegisterGym(form, inviteCode)}
+              onShowLogin={() => setMode("login")}
+            />
           ) : (
             <>
-              <p className="mt-8 text-xs font-bold uppercase tracking-[0.18em] text-emerald-600 lg:mt-0">Acceso seguro</p>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">Acceso seguro</p>
               <h2 className="mt-2 text-3xl font-bold tracking-tight">Bienvenido de nuevo</h2>
               <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Ingresa con una cuenta habilitada para continuar.</p>
 
@@ -81,14 +105,33 @@ export default function AuthScreen({ users, onLogin, onRegisterGym }) {
             </label>
             <label className="block">
               <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Contrasena</span>
-              <input
-                type="password"
-                value={form.password}
-                onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
-                className="mt-1.5 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 dark:border-slate-700 dark:bg-slate-950"
-                placeholder="Tu contrasena"
-                required
-              />
+              <div className="relative mt-1.5">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={form.password}
+                  onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+                  className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 pr-12 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 dark:border-slate-700 dark:bg-slate-950"
+                  placeholder="Tu contrasena"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((current) => !current)}
+                  aria-label={showPassword ? "Ocultar contrasena" : "Mostrar contrasena"}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  {showPassword ? (
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                      <path d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.4 5.2A9.5 9.5 0 0112 5c5 0 9 4.5 9 7a11 11 0 01-2.4 3.4M6.5 6.6C4.2 8 3 10.2 3 12c0 2.5 4 7 9 7a9.6 9.6 0 003.6-.7" strokeLinecap="round" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                      <path d="M3 12s3.6-7 9-7 9 7 9 7-3.6 7-9 7-9-7-9-7Z" />
+                      <circle cx="12" cy="12" r="2.6" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </label>
 
             {error ? (
@@ -97,17 +140,21 @@ export default function AuthScreen({ users, onLogin, onRegisterGym }) {
               </p>
             ) : null}
 
-            <button type="submit" className="shine-btn h-12 w-full rounded-xl bg-emerald-500 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:-translate-y-0.5 hover:bg-emerald-600 hover:shadow-xl hover:shadow-emerald-500/30 active:translate-y-0">
-              Iniciar sesion
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="shine-btn h-12 w-full rounded-xl bg-emerald-500 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:-translate-y-0.5 hover:bg-emerald-600 hover:shadow-xl hover:shadow-emerald-500/30 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSubmitting ? "Iniciando sesion..." : "Iniciar sesion"}
             </button>
               </form>
 
               <p className="mt-5 text-center text-sm text-slate-500 dark:text-slate-400">
-                Tu gimnasio aun no usa GymFlow?{" "}
+                Tu gimnasio aun no usa Gym Assist?{" "}
                 <button
                   type="button"
                   onClick={() => {
-                    setMode("register");
+                    setMode("code");
                     setError("");
                   }}
                   className="font-bold text-emerald-600 hover:text-emerald-700"
@@ -116,23 +163,30 @@ export default function AuthScreen({ users, onLogin, onRegisterGym }) {
                 </button>
               </p>
 
-              <div className="mt-8 border-t border-slate-200 pt-6 dark:border-slate-800">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Cuentas demo</p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {users.filter((user) => user.active && user.isDemo).map((user) => (
-                <button
-                  key={user.id}
-                  type="button"
-                  onClick={() => useDemo(user)}
-                  className="rounded-xl border border-slate-200 p-3 text-left transition hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-50 hover:shadow-md hover:shadow-emerald-500/10 active:translate-y-0 dark:border-slate-700 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/20"
+              {/* Las paginas legales las sirve la landing en la raiz del dominio;
+                  el dashboard vive bajo /app/, por eso los enlaces son absolutos.
+                  Se abren en otra pestana para no perder el formulario. */}
+              <p className="mt-8 border-t border-slate-200 pt-5 text-center text-xs leading-5 text-slate-400 dark:border-slate-800 dark:text-slate-500">
+                Al continuar, aceptas los{" "}
+                <a
+                  href="/terminos"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-slate-500 underline decoration-slate-300 underline-offset-2 transition hover:text-emerald-600 dark:text-slate-400 dark:decoration-slate-600 dark:hover:text-emerald-400"
                 >
-                  <span className="block text-sm font-semibold">{user.name}</span>
-                  <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">{getRoleLabel(user.role)}</span>
-                </button>
-              ))}
-            </div>
-            <p className="mt-3 text-xs text-slate-400">Selecciona una cuenta y luego inicia sesion. Contrasena demo: Demo123!</p>
-              </div>
+                  Terminos de uso
+                </a>{" "}
+                y la{" "}
+                <a
+                  href="/privacidad"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-slate-500 underline decoration-slate-300 underline-offset-2 transition hover:text-emerald-600 dark:text-slate-400 dark:decoration-slate-600 dark:hover:text-emerald-400"
+                >
+                  Politica de privacidad
+                </a>{" "}
+                de Gym Assist.
+              </p>
             </>
           )}
         </section>

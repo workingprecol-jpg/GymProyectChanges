@@ -178,6 +178,15 @@ button {
     animation: none;
   }
 
+  /* El icono de las tarjetas de metricas lleva la clase `group-hover:animate-icon-nudge`, no
+     `animate-icon-nudge`, asi que no basta con sumarlo a la lista de arriba: hay que repetir el
+     selector que genera Tailwind. La media query no aporta especificidad, y aquel selector pesa
+     (0,3,0), asi que este tiene que igualarlo y llegar despues — lo hace, porque este archivo
+     escribe sus reglas propias debajo de `@tailwind utilities`. */
+  .group:hover .group-hover\:animate-icon-nudge {
+    animation: none;
+  }
+
   .shine-btn::after {
     display: none;
   }

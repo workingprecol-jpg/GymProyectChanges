@@ -9,6 +9,12 @@
       "autoPort": true
     },
     {
+      "name": "landing",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": ["landing/node_modules/vite/bin/vite.js", "landing", "--host", "0.0.0.0"],
+      "port": 5174
+    },
+    {
       "name": "backend",
       "runtimeExecutable": "dotnet",
       "runtimeArgs": ["run", "--project", "backend/src/API/GymSaaS.Api.csproj", "--", "--urls", "http://localhost:5080"],

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { getMembershipStatusStyle } from "../membershipStatus.js";
 
 function PencilIcon(props) {
   return (
@@ -34,65 +35,6 @@ function TrashIcon(props) {
       <path d="M14 11v6" />
     </svg>
   );
-}
-
-const statusStyles = {
-  Active: {
-    row: "bg-white dark:bg-gray-800",
-    badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-    accent: "border-l-emerald-500 dark:border-l-emerald-400",
-    hover: "hover:!bg-emerald-50 dark:hover:!bg-emerald-950/40",
-    label: "Activa",
-  },
-  ExpiringSoon: {
-    row: "bg-white dark:bg-gray-800",
-    badge: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-    accent: "border-l-amber-500 dark:border-l-amber-400",
-    hover: "hover:!bg-amber-50 dark:hover:!bg-amber-950/40",
-    label: "Por vencer",
-  },
-  Expired: {
-    row: "bg-white dark:bg-gray-800",
-    badge: "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
-    accent: "border-l-rose-500 dark:border-l-rose-400",
-    hover: "hover:!bg-rose-50 dark:hover:!bg-rose-950/40",
-    label: "Vencida",
-  },
-  Pending: {
-    row: "bg-gray-50 dark:bg-gray-900/60",
-    badge: "bg-gray-100 text-gray-800",
-    accent: "border-l-gray-400 dark:border-l-gray-500",
-    hover: "hover:!bg-gray-100 dark:hover:!bg-gray-800/60",
-    label: "Pendiente",
-  },
-  Suspended: {
-    row: "bg-gray-50 dark:bg-gray-900/60",
-    badge: "bg-gray-100 text-gray-800",
-    accent: "border-l-gray-400 dark:border-l-gray-500",
-    hover: "hover:!bg-gray-100 dark:hover:!bg-gray-800/60",
-    label: "Suspendida",
-  },
-  Cancelled: {
-    row: "bg-gray-50 dark:bg-gray-900/60",
-    badge: "bg-gray-100 text-gray-800",
-    accent: "border-l-gray-400 dark:border-l-gray-500",
-    hover: "hover:!bg-gray-100 dark:hover:!bg-gray-800/60",
-    label: "Cancelada",
-  },
-};
-
-function getStatusStyle(status, tailwindClass) {
-  if (statusStyles[status]) {
-    return statusStyles[status];
-  }
-
-  return {
-    row: "bg-white dark:bg-gray-900",
-    badge: tailwindClass || "bg-gray-100 text-gray-800",
-    accent: "border-l-gray-400 dark:border-l-gray-500",
-    hover: "hover:!bg-gray-100 dark:hover:!bg-gray-800/60",
-    label: status || "Sin estado",
-  };
 }
 
 function formatDate(value) {
@@ -197,12 +139,12 @@ export default function MembersTable({
 
   return (
     <>
-    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900">
+    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-lg shadow-emerald-500/10 dark:border-slate-800 dark:bg-slate-900 dark:shadow-emerald-900/30">
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-          <thead className="bg-slate-50/80 text-left text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:bg-slate-950/60 dark:text-slate-400">
+          <thead className="bg-transparent text-left text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
             <tr>
-              <th className="px-4 py-3">
+              <th className="border-l-4 border-l-emerald-500 px-4 py-3 dark:border-l-emerald-400">
                 <div className="flex min-w-44 flex-col gap-2">
                   <span>Miembro</span>
                   <input
@@ -211,7 +153,7 @@ export default function MembersTable({
                     onClick={(event) => event.stopPropagation()}
                     onChange={(event) => setNameQuery(event.target.value)}
                     placeholder="Buscar por nombre..."
-                    className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs font-medium normal-case text-gray-700 outline-none focus:border-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-200"
+                    className="h-8 rounded-md border border-gray-300 !bg-gray-50 px-2 text-xs font-medium normal-case text-gray-700 outline-none focus:border-gray-900 dark:border-gray-600 dark:!bg-slate-900 dark:text-gray-100 dark:focus:border-gray-200"
                   />
                 </div>
               </th>
@@ -219,7 +161,7 @@ export default function MembersTable({
                 <div className="flex min-w-40 flex-col gap-2">
                   <span>Membresia</span>
                   <select
-                    className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs font-medium normal-case text-gray-700 outline-none focus:border-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-200"
+                    className="h-8 rounded-md border border-gray-300 !bg-gray-50 px-2 text-xs font-medium normal-case text-gray-700 outline-none focus:border-gray-900 dark:border-gray-600 dark:!bg-slate-900 dark:text-gray-100 dark:focus:border-gray-200"
                     value={planFilter}
                     onClick={(event) => event.stopPropagation()}
                     onChange={(event) => setPlanFilter(event.target.value)}
@@ -246,7 +188,7 @@ export default function MembersTable({
                   <span>Estado</span>
                   {onMembershipFilterChange ? (
                     <select
-                      className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs font-medium normal-case text-gray-700 outline-none focus:border-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-200"
+                      className="h-8 rounded-md border border-gray-300 !bg-gray-50 px-2 text-xs font-medium normal-case text-gray-700 outline-none focus:border-gray-900 dark:border-gray-600 dark:!bg-slate-900 dark:text-gray-100 dark:focus:border-gray-200"
                       value={membershipFilter}
                       onClick={(event) => event.stopPropagation()}
                       onChange={(event) => onMembershipFilterChange(event.target.value)}
@@ -271,7 +213,7 @@ export default function MembersTable({
               </tr>
             ) : null}
             {displayedMembers.map((member) => {
-              const style = getStatusStyle(member.status, member.tailwindClass);
+              const style = getMembershipStatusStyle(member.status, member.tailwindClass);
 
               return (
                 <tr
@@ -283,7 +225,7 @@ export default function MembersTable({
                 >
                   <td className={`border-l-4 ${style.accent} px-4 py-3`}>
                     <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-200">
+                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold ${style.avatar}`}>
                         {member.fullName.split(" ").map((name) => name[0]).slice(0, 2).join("")}
                       </div>
                       <div>
@@ -345,7 +287,7 @@ export default function MembersTable({
         </table>
       </div>
       {totalVisibleCount > 0 ? (
-        <div className="border-t border-slate-200/80 px-4 py-3 text-center text-xs text-gray-500 dark:border-slate-800 dark:text-gray-400">
+        <div className="border-t border-l-4 border-slate-200/80 border-l-emerald-500 px-4 py-3 text-center text-xs text-gray-500 dark:border-slate-800 dark:border-l-emerald-400 dark:text-gray-400">
           Mostrando {displayedMembers.length} de {totalVisibleCount} miembros registrados.
         </div>
       ) : null}

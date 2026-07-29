@@ -24,25 +24,6 @@ const initialClassTemplateForm = {
   room: "",
 };
 
-const featureSuggestions = [
-  {
-    title: "Recordatorios automaticos",
-    description: "Enviar avisos antes del vencimiento por WhatsApp, correo o SMS.",
-  },
-  {
-    title: "Control de acceso avanzado",
-    description: "Conectar torniquetes, QR o tarjetas al registro de entrada.",
-  },
-  {
-    title: "Pagos y cartera",
-    description: "Ver pagos pendientes, comprobantes, abonos y recaudo por plan.",
-  },
-  {
-    title: "Progreso del cliente",
-    description: "Guardar medidas, peso, fotos y rutinas para ver evolucion mensual.",
-  },
-];
-
 function Field({ label, children }) {
   return (
     <label className="space-y-1 text-sm">
@@ -285,7 +266,7 @@ export default function GymSetup({
               />
             </Field>
 
-            <Field label="Nombre del usuario">
+            <Field label="Nombre propietario">
               <input
                 className={inputClass}
                 value={profileForm.adminName}
@@ -295,7 +276,7 @@ export default function GymSetup({
               />
             </Field>
 
-            <Field label="Correo del usuario">
+            <Field label="Correo propietario">
               <input
                 className={inputClass}
                 type="email"
@@ -315,17 +296,6 @@ export default function GymSetup({
               />
             </Field>
 
-            <Field label="Rol">
-              <select
-                className={inputClass}
-                value={profileForm.adminRole}
-                onChange={(event) => updateProfileField("adminRole", event.target.value)}
-              >
-                <option>Propietario</option>
-                <option>Administrador</option>
-                <option>Recepcion</option>
-              </select>
-            </Field>
           </div>
         </form>
 
@@ -418,15 +388,15 @@ export default function GymSetup({
           </div>
         </form>
 
-        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-          <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white !shadow-lg !shadow-emerald-500/10 dark:border-gray-700 dark:bg-gray-800 dark:!shadow-emerald-900/30">
+          <div className="border-b border-l-4 border-gray-200 !border-l-emerald-500 px-4 py-3 dark:border-gray-700 dark:!border-l-emerald-400">
             <h2 className="text-base font-semibold text-gray-950 dark:text-white">Planes registrados</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-              <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:bg-gray-900/70 dark:text-gray-300">
+              <thead className="bg-transparent text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
                 <tr>
-                  <th className="px-4 py-3">Plan</th>
+                  <th className="border-l-4 border-l-emerald-500 px-4 py-3 dark:border-l-emerald-400">Plan</th>
                   <th className="px-4 py-3">Precio</th>
                   <th className="px-4 py-3">Duracion</th>
                   <th className="px-4 py-3">Clases</th>
@@ -565,15 +535,15 @@ export default function GymSetup({
           </div>
         </form>
 
-        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-          <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white !shadow-lg !shadow-emerald-500/10 dark:border-gray-700 dark:bg-gray-800 dark:!shadow-emerald-900/30">
+          <div className="border-b border-l-4 border-gray-200 !border-l-emerald-500 px-4 py-3 dark:border-gray-700 dark:!border-l-emerald-400">
             <h2 className="text-base font-semibold text-gray-950 dark:text-white">Registro de clases</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-              <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:bg-gray-900/70 dark:text-gray-300">
+              <thead className="bg-transparent text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
                 <tr>
-                  <th className="px-4 py-3">Clase</th>
+                  <th className="border-l-4 border-l-emerald-500 px-4 py-3 dark:border-l-emerald-400">Clase</th>
                   <th className="px-4 py-3">Entrenador</th>
                   <th className="px-4 py-3">Duracion</th>
                   <th className="px-4 py-3">Capacidad</th>
@@ -659,21 +629,15 @@ export default function GymSetup({
           <h2 className="text-base font-semibold text-gray-950 dark:text-white">{gymProfile.gymName}</h2>
           <div className="mt-3 space-y-2 text-sm text-gray-600 dark:text-gray-300">
             <p>{gymProfile.city || "Ciudad pendiente"}</p>
-            <p>{gymProfile.adminName}</p>
+            {/* El rol acompana al nombre como etiqueta: es un dato fijo del dueno,
+                no algo que se edite, por eso ya no tiene campo en el formulario. */}
+            <p className="flex flex-wrap items-center gap-2">
+              {gymProfile.adminName}
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                {gymProfile.adminRole}
+              </span>
+            </p>
             <p>{gymProfile.adminEmail}</p>
-            <p>{gymProfile.adminRole}</p>
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-          <h2 className="text-base font-semibold text-gray-950 dark:text-white">Sugerencias de funciones</h2>
-          <div className="mt-4 space-y-3">
-            {featureSuggestions.map((feature) => (
-              <div key={feature.title} className="rounded-md border border-gray-200 p-3 dark:border-gray-700">
-                <h3 className="text-sm font-semibold text-gray-950 dark:text-white">{feature.title}</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{feature.description}</p>
-              </div>
-            ))}
           </div>
         </div>
       </aside>

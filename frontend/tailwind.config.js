@@ -19,6 +19,15 @@ export default {
           "0%": { opacity: "0", transform: "translateY(8px) scale(0.97)" },
           "100%": { opacity: "1", transform: "translateY(0) scale(1)" },
         },
+        // Un balanceo leve del icono de las tarjetas de metricas mientras el mouse esta encima.
+        // Los valores son pequenos (2px y 4 grados) a proposito: se busca que el icono parezca
+        // vivo, no que salte. Vuelve a 0% al terminar: la clase se aplica con group-hover, y si
+        // el ultimo fotograma dejara el icono desplazado, al salir el mouse pegaria un salto seco
+        // al quitarse la animacion. Cerrando en reposo, entra y sale sin cortes.
+        "icon-nudge": {
+          "0%, 100%": { transform: "translateY(0) rotate(0deg)" },
+          "50%": { transform: "translateY(-2px) rotate(-4deg)" },
+        },
         "bell-ring": {
           "0%, 78%, 100%": { transform: "rotate(0deg)" },
           "80%": { transform: "rotate(13deg)" },
@@ -34,6 +43,7 @@ export default {
         "float-slow": "float-slow 14s ease-in-out infinite",
         "pop-in": "pop-in 260ms ease-out both",
         "bell-ring": "bell-ring 4.5s ease-in-out infinite",
+        "icon-nudge": "icon-nudge 1.4s ease-in-out infinite",
       },
     },
   },

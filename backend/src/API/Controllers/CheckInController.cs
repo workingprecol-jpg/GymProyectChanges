@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using GymSaaS.Application.Abstractions;
 using GymSaaS.Application.DTOs.CheckIns;
 using GymSaaS.Domain.Entities;
@@ -16,12 +17,19 @@ public sealed class CheckInController : ControllerBase
 {
     private readonly GymSaaSDbContext _dbContext;
     private readonly ITenantProvider _tenantProvider;
+    private readonly IAttendanceMaintenanceService _attendanceMaintenance;
 
-    public CheckInController(GymSaaSDbContext dbContext, ITenantProvider tenantProvider)
+    public CheckInController(
+        GymSaaSDbContext dbContext,
+        ITenantProvider tenantProvider,
+        IAttendanceMaintenanceService attendanceMaintenance)
     {
         _dbContext = dbContext;
         _tenantProvider = tenantProvider;
+        _attendanceMaintenance = attendanceMaintenance;
     }
+
+    private string? CurrentUserId => User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
     [HttpPost]
     public async Task<ActionResult<CheckInResponse>> CheckIn(
@@ -43,6 +51,11 @@ public sealed class CheckInController : ControllerBase
         {
             return NotFound("The selected member does not exist or is inactive.");
         }
+
+        // Before deciding that this member is already inside, retire any visit nobody closed.
+        // Otherwise a forgotten exit locks them out permanently: the conflict below is backed by a
+        // unique index, and reception can only clear it while the visit is still in the recent log.
+        await _attendanceMaintenance.CloseStaleVisitsAsync(cancellationToken);
 
         var hasOpenAttendance = await _dbContext.Attendances
             .AsNoTracking()
@@ -80,7 +93,7 @@ public sealed class CheckInController : ControllerBase
             CheckedInAt = checkedInAt,
             AccessGranted = accessGranted,
             Reason = reason,
-            RecordedByUserId = request.RecordedByUserId?.Trim()
+            RecordedByUserId = CurrentUserId
         };
 
         _dbContext.Attendances.Add(attendance);
@@ -122,7 +135,7 @@ public sealed class CheckInController : ControllerBase
         }
 
         attendance.CheckedOutAt = DateTimeOffset.UtcNow;
-        attendance.CheckedOutByUserId = request.RecordedByUserId?.Trim();
+        attendance.CheckedOutByUserId = CurrentUserId;
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return Ok(new CheckOutResponse(
@@ -137,6 +150,10 @@ public sealed class CheckInController : ControllerBase
         [FromQuery] int take = 25,
         CancellationToken cancellationToken = default)
     {
+        // Also swept here so "Personas dentro" and the log reflect reality as soon as anyone opens
+        // the check-in screen, without waiting for the next entry attempt.
+        await _attendanceMaintenance.CloseStaleVisitsAsync(cancellationToken);
+
         var safeTake = Math.Clamp(take, 1, 100);
         var logs = await _dbContext.Attendances
             .AsNoTracking()
@@ -154,7 +171,8 @@ public sealed class CheckInController : ControllerBase
                 attendance.AccessGranted,
                 attendance.Reason,
                 attendance.CheckedInAt,
-                attendance.CheckedOutAt))
+                attendance.CheckedOutAt,
+                attendance.AutoClosed))
             .ToListAsync(cancellationToken);
 
         return Ok(logs);

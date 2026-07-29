@@ -62,9 +62,9 @@ export default function InventoryDashboard({
     setForm((current) => ({ ...current, [field]: value }));
   }
 
-  function submitProduct(event) {
+  async function submitProduct(event) {
     event.preventDefault();
-    const result = onSaveProduct({
+    const result = await onSaveProduct({
       ...form,
       sku: form.sku.trim().toUpperCase(),
       name: form.name.trim(),
@@ -249,8 +249,8 @@ export default function InventoryDashboard({
           </form>
         ) : null}
 
-        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900">
-          <div className="border-b border-slate-200 p-5 dark:border-slate-800">
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-lg shadow-emerald-500/10 dark:border-slate-800 dark:bg-slate-900 dark:shadow-emerald-900/30">
+          <div className="border-b border-l-4 border-slate-200 border-l-emerald-500 p-5 dark:border-slate-800 dark:border-l-emerald-400">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <h2 className="text-lg font-bold">Productos</h2>
@@ -285,9 +285,9 @@ export default function InventoryDashboard({
 
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-950/60">
+              <thead className="bg-transparent text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 <tr>
-                  <th className="px-5 py-3">Producto</th>
+                  <th className="border-l-4 border-l-emerald-500 px-5 py-3 dark:border-l-emerald-400">Producto</th>
                   <th className="px-5 py-3">Precio</th>
                   <th className="px-5 py-3">Existencias</th>
                   <th className="px-5 py-3">Estado</th>

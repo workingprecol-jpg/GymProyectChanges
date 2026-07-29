@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="index, follow" />
+    <meta
+      name="description"
+      content="Política de privacidad y tratamiento de datos personales de Gym Assist Management Suite."
+    />
+    <title>Política de privacidad — Gym Assist</title>
+    <!-- Rutas relativas a proposito: resuelven igual servidas en /privacidad,
+         en /privacidad.html y abiertas directamente desde el disco. Con "/"
+         delante, abrir el archivo a mano carga file:///D:/_legal.css y la
+         pagina sale sin estilos. -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="stylesheet" href="_legal.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <p id="file-warning" class="notice" hidden>
+        Estás viendo este archivo desde el disco, no desde el servidor. La página se ve bien, pero
+        los enlaces de navegación no funcionarán. Ábrela en
+        <strong>http://localhost:5174/privacidad</strong> (o en gymassist.online/privacidad).
+      </p>
+      <script>
+        /* Solo avisa cuando se abre con file://; no hace nada al servirla. */
+        if (location.protocol === "file:") {
+          document.getElementById("file-warning").hidden = false;
+        }
+      </script>
+
+      <header class="topbar">
+        <a class="brand" href="/">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+              <path d="M6 7v10M3.5 9.5v5M18 7v10M20.5 9.5v5M6 12h12" />
+            </svg>
+          </span>
+          <span class="brand-name">Gym Assist <span>· Management Suite</span></span>
+        </a>
+        <a class="back" href="/">&larr; Volver al inicio</a>
+      </header>
+
+      <main>
+        <h1>Política de privacidad</h1>
+        <p class="updated">Última actualización: 24 de julio de 2026</p>
+
+        <div class="notice">
+          <p>
+            <strong>Borrador pendiente de revisión legal.</strong> Este documento describe con
+            precisión qué datos trata el sistema hoy, pero todavía no ha sido revisado por un
+            abogado y contiene campos sin completar, marcados así:
+            <span class="todo">[POR COMPLETAR]</span>.
+          </p>
+          <p>
+            No debe publicarse como definitivo hasta que se completen esos campos y se validen las
+            secciones 9 (Conservación) y 11 (Seguridad) contra la configuración real de producción.
+          </p>
+        </div>
+
+        <nav class="toc" aria-label="Índice">
+          <p>Contenido</p>
+          <ol>
+            <li><a href="#responsable">Quiénes somos</a></li>
+            <li><a href="#roles">Dos roles distintos</a></li>
+            <li><a href="#datos-cuenta">Datos de tu cuenta</a></li>
+            <li><a href="#datos-miembros">Datos de los miembros</a></li>
+            <li><a href="#sensibles">Datos sensibles</a></li>
+            <li><a href="#finalidades">Para qué los usamos</a></li>
+            <li><a href="#terceros">Con quién los compartimos</a></li>
+            <li><a href="#cookies">Cookies y almacenamiento local</a></li>
+            <li><a href="#conservacion">Cuánto tiempo los guardamos</a></li>
+            <li><a href="#derechos">Tus derechos</a></li>
+            <li><a href="#seguridad">Seguridad</a></li>
+            <li><a href="#cambios">Cambios y contacto</a></li>
+          </ol>
+        </nav>
+
+        <h2 id="responsable">1. Quiénes somos</h2>
+        <p>
+          Gym Assist Management Suite es un software de gestión para gimnasios operado por
+          <span class="todo">[RAZÓN SOCIAL]</span>, identificada con
+          <span class="todo">[NIT / IDENTIFICACIÓN FISCAL]</span> y domicilio en
+          <span class="todo">[DIRECCIÓN]</span>. Puedes escribirnos a
+          <span class="todo">[CORREO DE CONTACTO]</span> para cualquier asunto relacionado con tus
+          datos personales.
+        </p>
+
+        <h2 id="roles">2. Dos roles distintos</h2>
+        <p>
+          Esta es la parte más importante del documento, porque determina a quién debes dirigirte
+          según de qué datos hablemos.
+        </p>
+        <div class="callout">
+          <p>
+            <strong>Sobre tu cuenta somos responsables.</strong> Los datos de la persona que
+            contrata y del personal que usa el sistema los decidimos y tratamos nosotros.
+          </p>
+        </div>
+        <div class="callout">
+          <p>
+            <strong>Sobre los miembros del gimnasio somos encargados.</strong> Los datos de los
+            clientes del gimnasio los recoge y decide el gimnasio; nosotros solo los almacenamos y
+            procesamos por instrucción suya. El gimnasio es el responsable frente a sus miembros.
+          </p>
+        </div>
+        <p>
+          En la práctica: si eres cliente de un gimnasio y quieres acceder, corregir o eliminar tus
+          datos, debes solicitarlo <strong>al gimnasio</strong>, no a nosotros. Nosotros atendemos
+          esas solicitudes a través del gimnasio y dentro de lo pactado en el contrato de encargo
+          del tratamiento que forma parte de su contrato de servicio.
+        </p>
+
+        <h2 id="datos-cuenta">3. Datos de tu cuenta (somos responsables)</h2>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr><th>Dato</th><th>Para qué</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Nombre completo y correo electrónico</td><td>Identificarte, iniciar sesión y comunicarnos contigo</td></tr>
+              <tr><td>Contraseña</td><td>Autenticación. Se guarda solo como hash PBKDF2; no la conocemos ni podemos recuperarla</td></tr>
+              <tr><td>Rol (propietario, administrador, recepción, entrenador)</td><td>Determinar qué puede ver y hacer cada persona</td></tr>
+              <tr><td>Intentos fallidos de inicio de sesión y bloqueo temporal</td><td>Proteger la cuenta frente a intentos de adivinar la contraseña</td></tr>
+              <tr><td>Nombre, ciudad, país y teléfono del gimnasio</td><td>Configurar el espacio de trabajo y la facturación</td></tr>
+              <tr><td>Plan contratado, estado de aprobación y fechas de prueba o suscripción</td><td>Gestionar el servicio y su facturación</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="datos-miembros">4. Datos de los miembros del gimnasio (somos encargados)</h2>
+        <p>
+          El gimnasio registra en el sistema los datos de sus propios clientes. Nosotros los
+          almacenamos aislados por gimnasio: ningún gimnasio puede consultar los datos de otro.
+        </p>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr><th>Categoría</th><th>Datos</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Identificación y contacto</td><td>Nombre, teléfono, correo electrónico (opcional), género, edad</td></tr>
+              <tr><td>Medidas corporales</td><td>Estatura, peso, pecho, brazo, cintura, cadera, pierna</td></tr>
+              <tr><td>Seguimiento físico</td><td>Historial fechado de medidas, porcentaje de grasa corporal, objetivos y notas del entrenador</td></tr>
+              <tr><td>Asistencia</td><td>Fecha y hora de cada entrada y salida del gimnasio</td></tr>
+              <tr><td>Membresía y pagos</td><td>Plan, fechas de inicio y fin, importes, medio de pago, saldos pendientes</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="sensibles">5. Datos sensibles</h2>
+        <div class="callout">
+          <p>
+            Las medidas corporales, el porcentaje de grasa y las notas del entrenador son
+            <strong>datos relacionados con la salud</strong>. La legislación los trata como
+            categoría especial: exigen una autorización previa, expresa e informada, otorgada por
+            separado, y no pueden condicionarse a la prestación del servicio.
+          </p>
+        </div>
+        <p>
+          Esa autorización la debe obtener <strong>el gimnasio</strong> de cada miembro antes de
+          registrar estos datos, y así se le exige en el contrato de encargo. El sistema no la
+          solicita al miembro directamente, porque el miembro no interactúa con nosotros. El
+          registro de asistencia merece el mismo cuidado: es un historial de la presencia física de
+          una persona identificada en un lugar y una hora concretos.
+        </p>
+
+        <h2 id="finalidades">6. Para qué los usamos</h2>
+        <ul>
+          <li>Prestar el servicio contratado: gestión de miembros, accesos, clases, finanzas, inventario y operaciones.</li>
+          <li>Autenticar usuarios y aplicar los permisos de cada rol.</li>
+          <li>Facturar la suscripción y controlar el periodo de prueba.</li>
+          <li>Atender soporte y comunicaciones sobre el servicio.</li>
+          <li>Mantener la seguridad: detectar y frenar intentos de acceso no autorizado.</li>
+        </ul>
+        <p>
+          <strong>No vendemos datos personales, no los cedemos a terceros con fines comerciales y
+          no elaboramos perfiles publicitarios.</strong>
+        </p>
+
+        <h2 id="terceros">7. Con quién los compartimos</h2>
+        <p>Solo con los proveedores necesarios para operar el servicio:</p>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr><th>Proveedor</th><th>Servicio</th><th>Ubicación</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="todo">[PROVEEDOR DE HOSTING]</span></td>
+                <td>Servidores y base de datos</td>
+                <td><span class="todo">[PAÍS DEL CENTRO DE DATOS]</span></td>
+              </tr>
+              <tr>
+                <td><span class="todo">[PROVEEDOR DE CORREO]</span></td>
+                <td>Envío de correos transaccionales (restablecer contraseña, verificar cuenta)</td>
+                <td><span class="todo">[PAÍS]</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          También podremos entregar información cuando una autoridad competente lo exija por vía
+          legal.
+        </p>
+        <h3>Tipografías externas en la página de inicio</h3>
+        <p>
+          La página de inicio de este sitio carga una tipografía desde Google Fonts, lo que implica
+          que tu navegador envía tu dirección IP a servidores de Google al visitarla. Las páginas
+          legales como esta no lo hacen. Si prefieres evitarlo por completo, la tipografía puede
+          alojarse en nuestro propio servidor.
+        </p>
+
+        <h2 id="cookies">8. Cookies y almacenamiento local</h2>
+        <p>
+          <strong>Este sitio no usa cookies ni herramientas de analítica o publicidad.</strong> No
+          hay rastreadores de terceros.
+        </p>
+        <p>
+          La aplicación guarda dos cosas en el almacenamiento local de tu navegador, ambas
+          estrictamente necesarias para que funcione:
+        </p>
+        <ul>
+          <li><strong>Tu sesión</strong>, para no pedirte la contraseña en cada recarga.</li>
+          <li><strong>Tu preferencia de tema</strong> (claro u oscuro).</li>
+        </ul>
+        <p>Puedes borrarlas en cualquier momento desde la configuración de tu navegador.</p>
+
+        <h2 id="conservacion">9. Cuánto tiempo los guardamos</h2>
+        <p>
+          Conservamos los datos mientras el gimnasio mantenga su cuenta activa. Tras la
+          cancelación, los datos se eliminan en un plazo de
+          <span class="todo">[PLAZO — p. ej. 90 días]</span>, salvo los que debamos conservar por
+          obligación contable o fiscal durante
+          <span class="todo">[PLAZO LEGAL APLICABLE]</span>.
+        </p>
+        <div class="notice">
+          <p>
+            <strong>Por verificar antes de publicar.</strong> Hoy el sistema no borra datos de
+            forma automática ni tiene un proceso de purga programado. Antes de publicar esta
+            sección hay que definir el plazo y documentar cómo se ejecuta, o la promesa no se
+            podrá cumplir.
+          </p>
+        </div>
+
+        <h2 id="derechos">10. Tus derechos</h2>
+        <p>
+          Puedes solicitar en cualquier momento: <strong>acceso</strong> a tus datos,
+          <strong>rectificación</strong> de los que sean inexactos, <strong>supresión</strong>,
+          <strong>oposición</strong> al tratamiento, <strong>limitación</strong> y
+          <strong>portabilidad</strong> en formato legible por máquina. También puedes revocar la
+          autorización que hayas otorgado.
+        </p>
+        <p>
+          Escríbenos a <span class="todo">[CORREO DE CONTACTO]</span> desde la dirección asociada a
+          tu cuenta. Responderemos dentro de los plazos legales aplicables.
+        </p>
+        <p>
+          Si eres miembro de un gimnasio que usa Gym Assist, dirige tu solicitud al gimnasio: es él
+          quien decide sobre tus datos y quien debe atenderte. Si aun así nos escribes, trasladaremos
+          la solicitud al gimnasio correspondiente.
+        </p>
+        <p>
+          Si consideras que no hemos atendido tu solicitud correctamente, puedes reclamar ante la
+          autoridad de protección de datos de tu país
+          <span class="todo">[AUTORIDAD APLICABLE — p. ej. SIC en Colombia, AEPD en España]</span>.
+        </p>
+
+        <h2 id="seguridad">11. Seguridad</h2>
+        <p>Medidas efectivamente implementadas hoy:</p>
+        <ul>
+          <li>Las contraseñas se almacenan solo como hash PBKDF2. Nadie, ni nosotros, puede leerlas.</li>
+          <li>La sesión se autentica con un token firmado y caducado.</li>
+          <li>Aislamiento entre gimnasios aplicado en la propia capa de datos y cubierto por pruebas automáticas.</li>
+          <li>Límite de peticiones por IP y bloqueo temporal de la cuenta tras varios intentos fallidos.</li>
+          <li>Todo el tráfico viaja cifrado por HTTPS.</li>
+        </ul>
+        <div class="notice">
+          <p>
+            <strong>Por verificar antes de publicar.</strong> Esta sección no debe mencionar copias
+            de seguridad ni notificación de incidentes por correo hasta que ambas cosas estén
+            configuradas y probadas en producción. Prometer una medida que no existe es peor que no
+            mencionarla.
+          </p>
+        </div>
+
+        <h2 id="cambios">12. Cambios y contacto</h2>
+        <p>
+          Si modificamos esta política, actualizaremos la fecha del encabezado y, cuando el cambio
+          sea sustancial, avisaremos por correo a las cuentas activas. Para cualquier duda:
+          <span class="todo">[CORREO DE CONTACTO]</span>.
+        </p>
+      </main>
+
+      <footer class="pagefoot">
+        <span>© 2026 Gym Assist. Todos los derechos reservados.</span>
+        <span>
+          <a href="/">Inicio</a> &nbsp;·&nbsp;
+          <a href="/terminos">Términos de uso</a> &nbsp;·&nbsp;
+          <a href="/app/">Admin</a>
+        </span>
+      </footer>
+    </div>
+  </body>
+</html>

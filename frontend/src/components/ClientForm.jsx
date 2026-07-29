@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import BirthDatePicker from "./BirthDatePicker.jsx";
 
+const paymentMethods = ["Efectivo", "Transferencia", "Tarjeta"];
+
 const initialForm = {
   fullName: "",
   gender: "female",
@@ -15,6 +17,9 @@ const initialForm = {
   hipCm: "",
   legCm: "",
   planId: "",
+  discountEnabled: false,
+  discountPercent: "",
+  paymentMethod: "Efectivo",
 };
 
 function formatCurrency(value) {
@@ -23,6 +28,14 @@ function formatCurrency(value) {
     currency: "COP",
     maximumFractionDigits: 0,
   }).format(value || 0);
+}
+
+function clampPercent(value) {
+  if (Number.isNaN(value)) {
+    return 0;
+  }
+
+  return Math.min(Math.max(value, 0), 100);
 }
 
 function calculateAge(birthDateValue) {
@@ -156,18 +169,38 @@ function MailIcon() {
 }
 
 
-export default function ClientForm({ onCreate, onUpdate, onCancelEdit, editingMember = null, plans = [] }) {
+// onGoToProgress llega solo si el usuario tiene permiso sobre Progreso (recepcion no lo
+// tiene): sin el, el aviso se muestra sin boton en vez de mandar a una pestana vetada.
+export default function ClientForm({
+  onCreate,
+  onUpdate,
+  onCancelEdit,
+  onGoToProgress,
+  editingMember = null,
+  plans = [],
+}) {
   const [form, setForm] = useState(initialForm);
   const isEditing = Boolean(editingMember);
   const selectedPlan = plans.find((plan) => plan.id === form.planId) ?? null;
   const computedAge = calculateAge(form.birthDate);
+  // El valor a cobrar es derivado: precio de lista del plan menos el descuento
+  // opcional. No se guarda en el estado para que no pueda desincronizarse.
+  const basePrice = selectedPlan?.price ?? 0;
+  const discountPercent = form.discountEnabled ? clampPercent(Number(form.discountPercent) || 0) : 0;
+  const amountToPay = Math.round(basePrice * (1 - discountPercent / 100));
 
   useEffect(() => {
-    setForm((current) =>
-      plans.some((plan) => plan.id === current.planId)
-        ? current
-        : { ...current, planId: plans[0]?.id ?? "" },
-    );
+    setForm((current) => {
+      if (plans.some((plan) => plan.id === current.planId)) {
+        return current;
+      }
+
+      const fallback = plans[0] ?? null;
+      return {
+        ...current,
+        planId: fallback?.id ?? "",
+      };
+    });
   }, [plans]);
 
   useEffect(() => {
@@ -199,6 +232,12 @@ export default function ClientForm({ onCreate, onUpdate, onCancelEdit, editingMe
     setForm((current) => ({ ...current, [field]: value }));
   }
 
+  // El valor a cobrar se deriva del plan (menos el descuento), asi que cambiar de
+  // plan solo actualiza el id; el monto se recalcula solo.
+  function selectPlan(plan) {
+    setForm((current) => ({ ...current, planId: plan.id }));
+  }
+
   function handleSubmit(event) {
     event.preventDefault();
 
@@ -215,14 +254,10 @@ export default function ClientForm({ onCreate, onUpdate, onCancelEdit, editingMe
         gender: form.gender,
         birthDate: form.birthDate || null,
         age: calculateAge(form.birthDate),
+        // Solo la altura: el resto de la biometria es historial de Progreso y se
+        // actualiza registrando una medicion, no editando la ficha.
         bodyMetrics: {
           heightCm: Number(form.heightCm) || null,
-          weightKg: Number(form.weightKg) || null,
-          chestCm: Number(form.chestCm) || null,
-          armCm: Number(form.armCm) || null,
-          waistCm: Number(form.waistCm) || null,
-          hipCm: Number(form.hipCm) || null,
-          legCm: Number(form.legCm) || null,
         },
       });
       setForm({ ...initialForm, planId: selectedPlan.id });
@@ -243,6 +278,15 @@ export default function ClientForm({ onCreate, onUpdate, onCancelEdit, editingMe
       age: calculateAge(form.birthDate),
       planName: selectedPlan.name,
       subscriptionValue: selectedPlan.price || 0,
+      // El cobro de la inscripcion viaja con el registro: "Paid" entra al ingreso del
+      // mes, "Pending" queda en cartera por cobrar. Un monto en cero no cobra nada.
+      // paymentAmount es lo realmente cobrado (ya con el descuento); subscriptionValue
+      // se queda como el precio de lista, asi el descuento es solo para este cliente.
+      paymentAmount: amountToPay > 0 ? amountToPay : 0,
+      paymentMethod: form.paymentMethod,
+      // La inscripcion siempre se cobra: el valor entra como ingreso del mes en Finanzas
+      // sin tener que registrarlo aparte. Un monto en cero no genera ningun pago.
+      paymentStatus: amountToPay > 0 ? "Paid" : null,
       startDate: today.toISOString().slice(0, 10),
       endDate: endDate.toISOString().slice(0, 10),
       daysToExpire: selectedPlan.durationDays || 30,
@@ -265,7 +309,10 @@ export default function ClientForm({ onCreate, onUpdate, onCancelEdit, editingMe
 
   function handleCancel() {
     onCancelEdit?.();
-    setForm((current) => ({ ...initialForm, planId: current.planId }));
+    setForm((current) => ({
+      ...initialForm,
+      planId: current.planId,
+    }));
   }
 
   return (
@@ -328,17 +375,21 @@ export default function ClientForm({ onCreate, onUpdate, onCancelEdit, editingMe
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Peso kg">
-            <input
-              className={getInputClass(form.weightKg !== "")}
-              type="number"
-              min="0"
-              step="0.1"
-              value={form.weightKg}
-              onChange={(event) => updateField("weightKg", event.target.value)}
-              placeholder="68.5"
-            />
-          </Field>
+          {/* El peso es una medicion de Progreso, asi que al editar no se toca aqui.
+              La altura si se queda: Progreso no la registra y no cambia entrenando. */}
+          {!isEditing ? (
+            <Field label="Peso kg">
+              <input
+                className={getInputClass(form.weightKg !== "")}
+                type="number"
+                min="0"
+                step="0.1"
+                value={form.weightKg}
+                onChange={(event) => updateField("weightKg", event.target.value)}
+                placeholder="68.5"
+              />
+            </Field>
+          ) : null}
 
           <Field label="Altura cm">
             <input
@@ -384,7 +435,36 @@ export default function ClientForm({ onCreate, onUpdate, onCancelEdit, editingMe
         </div>
       </div>
 
-      <SectionHeading title="Biometria" subtitle="Medidas corporales del cliente." icon={<PulseIcon />} />
+      <SectionHeading
+        title="Biometria"
+        subtitle={
+          isEditing
+            ? "Las medidas se actualizan desde Progreso."
+            : "Medidas corporales del cliente. Quedan como su primera medicion."
+        }
+        icon={<PulseIcon />}
+      />
+      {isEditing ? (
+        <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-700 dark:bg-gray-800/40">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            El peso y los perimetros ya no se editan aqui. Registra una medicion nueva en{" "}
+            <span className="font-semibold text-gray-700 dark:text-gray-200">Progreso</span> para actualizarlos: asi el
+            cambio queda fechado en el historial y en las graficas.
+          </p>
+          {onGoToProgress ? (
+            <button
+              type="button"
+              onClick={() => onGoToProgress(editingMember.memberId)}
+              className="mt-3 inline-flex h-10 items-center gap-2 rounded-full bg-emerald-500 px-4 text-sm font-semibold text-white shadow-sm shadow-emerald-500/30 transition hover:bg-emerald-600"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 12h3.5l2-6.5L12 18l2.5-6H21" />
+              </svg>
+              Registrar medicion en Progreso
+            </button>
+          ) : null}
+        </div>
+      ) : (
       <div className="mt-3 grid gap-4 sm:grid-cols-2">
         <Field label="Pecho cm">
           <input
@@ -441,6 +521,7 @@ export default function ClientForm({ onCreate, onUpdate, onCancelEdit, editingMe
           />
         </Field>
       </div>
+      )}
 
       <SectionHeading
         title="Membresia"
@@ -452,7 +533,7 @@ export default function ClientForm({ onCreate, onUpdate, onCancelEdit, editingMe
           No hay planes registrados. Crea uno en Configuracion para poder asignarlo aqui.
         </p>
       ) : (
-      <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="mt-3 space-y-4">
         <div className="flex flex-wrap gap-2">
           {plans.map((plan) => {
             const isSelected = form.planId === plan.id;
@@ -461,7 +542,7 @@ export default function ClientForm({ onCreate, onUpdate, onCancelEdit, editingMe
                 key={plan.id}
                 type="button"
                 disabled={isEditing}
-                onClick={() => updateField("planId", plan.id)}
+                onClick={() => selectPlan(plan)}
                 className={`h-10 rounded-full border px-4 text-sm font-medium transition ${
                   isSelected
                     ? "border-emerald-500 bg-emerald-500 text-white shadow-sm shadow-emerald-500/30"
@@ -474,16 +555,79 @@ export default function ClientForm({ onCreate, onUpdate, onCancelEdit, editingMe
           })}
         </div>
 
-        {selectedPlan ? (
-          <div className="text-sm sm:text-right">
-            <span className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-              Valor de la suscripcion
-            </span>
-            <span className="text-base font-semibold text-gray-950 dark:text-white">
-              {formatCurrency(selectedPlan.price)}
-            </span>
+        {isEditing ? (
+          selectedPlan ? (
+            <div className="text-sm">
+              <span className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+                Valor de la suscripcion
+              </span>
+              <span className="text-base font-semibold text-gray-950 dark:text-white">
+                {formatCurrency(selectedPlan.price)}
+              </span>
+            </div>
+          ) : null
+        ) : (
+          <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-700 dark:bg-gray-800/40">
+            <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+              <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 dark:border-gray-600"
+                  checked={form.discountEnabled}
+                  onChange={(event) => updateField("discountEnabled", event.target.checked)}
+                />
+                Aplicar descuento
+              </label>
+              {form.discountEnabled ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    className="h-9 w-24 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-950 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-50"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={form.discountPercent}
+                    onChange={(event) => updateField("discountPercent", event.target.value)}
+                    placeholder="0"
+                    aria-label="Porcentaje de descuento"
+                  />
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-300">% de descuento</span>
+                </div>
+              ) : null}
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Valor a pagar">
+                <div className="flex h-10 w-full items-center gap-2 rounded-md border border-gray-300 bg-gray-100 px-3 text-sm dark:border-gray-600 dark:bg-gray-800">
+                  <span className="font-semibold text-gray-950 dark:text-gray-50">{formatCurrency(amountToPay)}</span>
+                  {discountPercent > 0 ? (
+                    <span className="text-xs text-gray-400 line-through dark:text-gray-500">{formatCurrency(basePrice)}</span>
+                  ) : null}
+                </div>
+              </Field>
+
+              <Field label="Medio de pago">
+                <select
+                  className={getInputClass(true)}
+                  value={form.paymentMethod}
+                  onChange={(event) => updateField("paymentMethod", event.target.value)}
+                >
+                  {paymentMethods.map((method) => (
+                    <option key={method}>{method}</option>
+                  ))}
+                </select>
+              </Field>
+
+            </div>
+
+            <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+              {amountToPay > 0
+                ? `Se registrara un pago de ${formatCurrency(amountToPay)} en Finanzas.${discountPercent > 0 ? ` Incluye ${discountPercent}% de descuento sobre ${formatCurrency(basePrice)}.` : ""} No hace falta volver a registrarlo.`
+                : discountPercent >= 100
+                  ? "Con 100% de descuento no se cobra nada en la inscripcion."
+                  : "Con valor en cero no se registra ningun cobro."}
+            </p>
           </div>
-        ) : null}
+        )}
       </div>
       )}
 

@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 
+import BirthDatePicker from "./BirthDatePicker";
+
 const statusStyles = {
   Active: {
     row: "bg-white dark:bg-gray-800",
@@ -41,7 +43,25 @@ function getStatusStyle(status) {
   };
 }
 
+// "Registro reciente" es historico: el motivo guardado dice en que estado estaba el plan en el
+// momento de esa visita, no en que estado esta el miembro hoy. Por eso la linea y el badge de esa
+// fila se derivan del motivo y no del miembro: una entrada de hace un mes debe seguir contando lo
+// que paso entonces. Los motivos que el backend puede devolver y no estan aqui ("Sin plan
+// registrado", "Pago pendiente", "Plan cancelado") caen al gris neutro de `getStatusStyle`.
+const reasonToStatus = {
+  "Plan activo": "Active",
+  "Plan por vencer": "ExpiringSoon",
+  "Plan vencido": "Expired",
+  "Plan suspendido": "Suspended",
+};
+
 const MAX_VISIBLE_MEMBERS = 10;
+const LOGS_PER_PAGE = 10;
+
+// Mismo aspecto que los filtros de la tabla de clientes. `normal-case` es necesario porque el
+// thead aplica `uppercase` a todo lo que cuelga de el, incluidos los controles.
+const filterControlClass =
+  "h-8 rounded-md border border-gray-300 !bg-gray-50 px-2 text-xs font-medium normal-case text-gray-700 outline-none focus:border-gray-900 dark:border-gray-600 dark:!bg-slate-900 dark:text-gray-100 dark:focus:border-gray-200";
 
 function getDateKey(value) {
   const date = value ? new Date(value) : new Date();
@@ -127,6 +147,20 @@ export default function CheckInDashboard({
 }) {
   const [nameQuery, setNameQuery] = useState("");
   const [lastResult, setLastResult] = useState(null);
+  const [logNameQuery, setLogNameQuery] = useState("");
+  const [accessFilter, setAccessFilter] = useState("all");
+  const [reasonFilter, setReasonFilter] = useState("all");
+  const [logDate, setLogDate] = useState("");
+  const [logPage, setLogPage] = useState(1);
+
+  // Cambiar cualquier filtro vuelve a la primera pagina: quedarse en la pagina 3 de un resultado
+  // que ahora tiene una sola es la forma mas rapida de creer que el filtro no encontro nada.
+  function applyLogFilter(setter) {
+    return (valor) => {
+      setter(valor);
+      setLogPage(1);
+    };
+  }
 
   const visibleMembers = useMemo(() => {
     const query = nameQuery.trim().toLowerCase();
@@ -143,20 +177,60 @@ export default function CheckInDashboard({
     return attendanceLogs.filter((log) => getDateKey(log.checkedAt) === todayKey);
   }, [attendanceLogs]);
 
+  // Los estados ofrecidos salen de los propios registros, igual que el filtro de plan en la tabla
+  // de clientes: asi cada opcion visible corresponde a algo realmente registrado y no se listan
+  // motivos que nunca han ocurrido en este gimnasio.
+  const reasonOptions = useMemo(
+    () => [...new Set(attendanceLogs.map((log) => log.reason).filter(Boolean))].sort(),
+    [attendanceLogs],
+  );
+
+  const visibleLogs = useMemo(() => {
+    const query = logNameQuery.trim().toLowerCase();
+
+    return attendanceLogs.filter((log) => {
+      if (query && !log.fullName.toLowerCase().includes(query)) {
+        return false;
+      }
+
+      if (accessFilter !== "all" && String(Boolean(log.accessGranted)) !== accessFilter) {
+        return false;
+      }
+
+      if (reasonFilter !== "all" && log.reason !== reasonFilter) {
+        return false;
+      }
+
+      // Se compara por clave local YYYY-MM-DD, no convirtiendo la fecha elegida a UTC: el registro
+      // se guarda en UTC y en Colombia (UTC-5) una entrada de las 7 p. m. cae al dia siguiente en
+      // UTC. Comparando la fecha tal como la ve el usuario, el dia que elige es el que ve escrito
+      // en la columna Entrada.
+      return !logDate || getDateKey(log.checkedAt) === logDate;
+    });
+  }, [attendanceLogs, logNameQuery, accessFilter, reasonFilter, logDate]);
+
+  const logPageCount = Math.max(1, Math.ceil(visibleLogs.length / LOGS_PER_PAGE));
+  // Si un filtro reduce el resultado a menos paginas de las que hay ahora, la pagina actual dejaria
+  // de existir y la tabla se veria vacia sin motivo. Se recorta al vuelo en vez de con un efecto,
+  // asi no hay un render intermedio en blanco.
+  const currentLogPage = Math.min(logPage, logPageCount);
+  const logPageStart = (currentLogPage - 1) * LOGS_PER_PAGE;
+  const displayedLogs = visibleLogs.slice(logPageStart, logPageStart + LOGS_PER_PAGE);
+
   function getOpenAttendance(memberId) {
     return attendanceLogs.find((log) => log.memberId === memberId && log.accessGranted && !log.checkedOutAt);
   }
 
-  function handleCheckIn(memberId) {
-    const log = onCheckIn?.(memberId);
+  async function handleCheckIn(memberId) {
+    const log = await onCheckIn?.(memberId);
 
     if (log) {
       setLastResult(log);
     }
   }
 
-  function handleCheckOut(memberId) {
-    const log = onCheckOut?.(memberId);
+  async function handleCheckOut(memberId) {
+    const log = await onCheckOut?.(memberId);
 
     if (log) {
       setLastResult(log);
@@ -172,8 +246,8 @@ export default function CheckInDashboard({
         <StatCard label="Personas dentro" value={attendanceLogs.filter((log) => log.accessGranted && !log.checkedOutAt).length} tone="sky" />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-lg shadow-emerald-500/10 dark:border-slate-800 dark:bg-slate-900 dark:shadow-emerald-900/30">
+        <div className="border-b border-l-4 border-gray-200 !border-l-emerald-500 px-4 py-3 dark:border-gray-700 dark:!border-l-emerald-400">
           <h2 className="text-base font-semibold text-gray-950 dark:text-white">Check-in de entrada</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">Busca un cliente y valida su entrada o su salida.</p>
         </div>
@@ -196,9 +270,9 @@ export default function CheckInDashboard({
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-              <thead className="bg-slate-50/80 text-left text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:bg-slate-950/60 dark:text-slate-400">
+              <thead className="bg-transparent text-left text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
                 <tr>
-                  <th className="px-4 py-3">
+                  <th className="border-l-4 border-l-emerald-500 px-4 py-3 dark:border-l-emerald-400">
                     <div className="flex min-w-44 flex-col gap-2">
                       <span>Miembro</span>
                       <input
@@ -206,7 +280,7 @@ export default function CheckInDashboard({
                         value={nameQuery}
                         onChange={(event) => setNameQuery(event.target.value)}
                         placeholder="Buscar por nombre..."
-                        className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs font-medium normal-case text-gray-700 outline-none focus:border-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-200"
+                        className="h-8 rounded-md border border-gray-300 !bg-gray-50 px-2 text-xs font-medium normal-case text-gray-700 outline-none focus:border-gray-900 dark:border-gray-600 dark:!bg-slate-900 dark:text-gray-100 dark:focus:border-gray-200"
                       />
                     </div>
                   </th>
@@ -313,36 +387,97 @@ export default function CheckInDashboard({
           </div>
         )}
         {totalVisibleCount > 0 ? (
-          <div className="border-t border-slate-200/80 px-4 py-3 text-center text-xs text-gray-500 dark:border-slate-800 dark:text-gray-400">
+          <div className="border-t border-l-4 border-slate-200/80 border-l-emerald-500 px-4 py-3 text-center text-xs text-gray-500 dark:border-slate-800 dark:border-l-emerald-400 dark:text-gray-400">
             Mostrando {displayedMembers.length} de {totalVisibleCount} miembros registrados.
           </div>
         ) : null}
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-        <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white !shadow-lg !shadow-emerald-500/10 dark:border-gray-700 dark:bg-gray-800 dark:!shadow-emerald-900/30">
+        <div className="border-b border-l-4 border-gray-200 !border-l-emerald-500 px-4 py-3 dark:border-gray-700 dark:!border-l-emerald-400">
           <h2 className="text-base font-semibold text-gray-950 dark:text-white">Registro reciente</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-            <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:bg-gray-900/70 dark:text-gray-300">
+            <thead className="bg-transparent text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
               <tr>
-                <th className="px-4 py-3">Entrada</th>
-                <th className="px-4 py-3">Salida</th>
-                <th className="px-4 py-3">Cliente</th>
-                <th className="px-4 py-3">Plan</th>
-                <th className="px-4 py-3">Resultado</th>
-                <th className="px-4 py-3">Motivo</th>
+                <th className="border-l-4 border-l-emerald-500 px-4 py-3 dark:border-l-emerald-400">
+                  <div className="flex min-w-44 flex-col gap-2">
+                    <span>Cliente</span>
+                    <input
+                      type="text"
+                      value={logNameQuery}
+                      onChange={(event) => applyLogFilter(setLogNameQuery)(event.target.value)}
+                      placeholder="Buscar por nombre..."
+                      className={filterControlClass}
+                    />
+                  </div>
+                </th>
+                <th className="px-4 py-3 align-top">Plan</th>
+                <th className="px-4 py-3">
+                  <div className="flex min-w-32 flex-col gap-2">
+                    <span>Acceso</span>
+                    <select
+                      className={filterControlClass}
+                      value={accessFilter}
+                      onChange={(event) => applyLogFilter(setAccessFilter)(event.target.value)}
+                    >
+                      <option value="all">Todos</option>
+                      <option value="true">Permitido</option>
+                      <option value="false">Bloqueado</option>
+                    </select>
+                  </div>
+                </th>
+                <th className="px-4 py-3">
+                  <div className="flex min-w-40 flex-col gap-2">
+                    <span>Estado</span>
+                    <select
+                      className={filterControlClass}
+                      value={reasonFilter}
+                      onChange={(event) => applyLogFilter(setReasonFilter)(event.target.value)}
+                    >
+                      <option value="all">Todos</option>
+                      {reasonOptions.map((reason) => (
+                        <option key={reason} value={reason}>
+                          {reason}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </th>
+                <th className="px-4 py-3">
+                  <div className="flex min-w-36 flex-col gap-2">
+                    <span>Entrada</span>
+                    <BirthDatePicker
+                      value={logDate}
+                      onChange={applyLogFilter(setLogDate)}
+                      allowClear
+                      compact
+                      placeholder="Todas"
+                    />
+                  </div>
+                </th>
+                <th className="px-4 py-3 align-top">Salida</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-              {attendanceLogs.slice(0, 8).map((log) => (
-                <tr key={log.id} className="bg-white dark:bg-gray-800">
-                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatDateTime(log.checkedAt)}</td>
-                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
-                    {log.checkedOutAt ? formatDateTime(log.checkedOutAt) : log.accessGranted ? "Dentro" : "-"}
+              {visibleLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
+                    No hay registros con los filtros aplicados.
                   </td>
-                  <td className="px-4 py-3 font-medium text-gray-950 dark:text-white">{log.fullName}</td>
+                </tr>
+              ) : null}
+              {displayedLogs.map((log) => {
+                const reasonStyle = getStatusStyle(reasonToStatus[log.reason] || log.reason);
+
+                return (
+                <tr key={log.id} className="bg-white dark:bg-gray-800">
+                  <td
+                    className={`border-l-4 ${reasonStyle.accent} px-4 py-3 font-medium text-gray-950 dark:text-white`}
+                  >
+                    {log.fullName}
+                  </td>
                   <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{log.planName}</td>
                   <td className="px-4 py-3">
                     <span
@@ -353,12 +488,66 @@ export default function CheckInDashboard({
                       {log.accessGranted ? "Permitido" : "Bloqueado"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{log.reason}</td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${reasonStyle.badge}`}
+                    >
+                      {log.reason}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatDateTime(log.checkedAt)}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                    {log.autoClosed ? (
+                      // No se muestra la hora a proposito: es el corte configurado, no una salida
+                      // observada, y presentarla como hora real seria inventar el dato.
+                      <span
+                        className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400"
+                        title="Nadie registro la salida. El sistema cerro la visita automaticamente."
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                        Cierre automatico
+                      </span>
+                    ) : log.checkedOutAt ? (
+                      formatDateTime(log.checkedOutAt)
+                    ) : log.accessGranted ? (
+                      "Dentro"
+                    ) : (
+                      "-"
+                    )}
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
+        {visibleLogs.length > 0 ? (
+          <div className="flex items-center justify-center gap-3 border-t border-l-4 border-gray-200 !border-l-emerald-500 px-4 py-3 text-center text-xs text-gray-500 dark:border-gray-700 dark:!border-l-emerald-400 dark:text-gray-400">
+            {logPageCount > 1 ? (
+              <button
+                type="button"
+                onClick={() => setLogPage(currentLogPage - 1)}
+                disabled={currentLogPage === 1}
+                className="rounded-md border border-gray-300 px-2 py-1 font-semibold transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:hover:bg-gray-700"
+              >
+                Anterior
+              </button>
+            ) : null}
+            <span>
+              Mostrando {logPageStart + 1}-{logPageStart + displayedLogs.length} de {visibleLogs.length} registros.
+            </span>
+            {logPageCount > 1 ? (
+              <button
+                type="button"
+                onClick={() => setLogPage(currentLogPage + 1)}
+                disabled={currentLogPage === logPageCount}
+                className="rounded-md border border-gray-300 px-2 py-1 font-semibold transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:hover:bg-gray-700"
+              >
+                Siguiente
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </section>
   );
